@@ -1,98 +1,114 @@
 import java.util.LinkedList;
 import java.util.Queue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-
-/**
- * 生产者
- */
-class Producer implements Runnable {
-    private ReentrantLock lock;
-    private Condition full;
-    private Condition empty;
-    private Queue<Integer> queue;
-    private int maxSize;
-    private int count;
-
-    Producer(ReentrantLock lock, Condition full, Condition empty, Queue<Integer> queue, int maxSize) {
-        this.lock = lock;
-        this.queue = queue;
-        this.full = full;
-        this.empty = empty;
-        this.maxSize = maxSize;
-    }
-
-    public void run() {
-        try {
-            while (true) {
-                lock.lock();
-                while (queue.size() == maxSize) {
-                    full.await();
-                }
-                queue.offer(count);
-                System.out.println(Thread.currentThread().toString() + "producer:" + count);
-                count++;
-                empty.signalAll();
-                lock.unlock();
-                Thread.sleep(1000);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-}
-
-/**
- * 消费者
- */
-class Consumer implements Runnable {
-    private ReentrantLock lock;
-    private Condition full;
-    private Condition empty;
-    private Queue<Integer> queue;
-
-    public Consumer(ReentrantLock lock, Condition full, Condition empty, Queue<Integer> queue) {
-        this.lock = lock;
-        this.full = full;
-        this.empty = empty;
-        this.queue = queue;
-    }
-
-    public void run() {
-        try {
-            while (true) {
-                lock.lock();
-                while (queue.size() == 0) {
-                    empty.await();
-                }
-                int number = queue.poll();
-                System.out.println(Thread.currentThread().toString() + "Consumer:" + number);
-                full.signalAll();
-                lock.unlock();
-                Thread.sleep(3000);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-}
 
 /**
  * 生产者消费者模式示例
  */
 public class ProducerConsumerExample {
-    public static void main(String[] args) throws InterruptedException {
-        ReentrantLock lock = new ReentrantLock();
-        Condition proCondition = lock.newCondition();
-        Condition conCondition = lock.newCondition();
-        LinkedList<Integer> queue = new LinkedList<>();
-        ExecutorService executor = Executors.newFixedThreadPool(4);
+    public static void main(String[] args) {
+        AtomicInteger atomicInteger = new AtomicInteger(0);
+        BlockingQueue<Integer> blockingQueue = new BlockingQueue<>(10);
+        Thread producer0 = new Thread(new Producer(blockingQueue, atomicInteger));
+        Thread producer1 = new Thread(new Producer(blockingQueue, atomicInteger));
+        Thread consumer = new Thread(new Consumer(blockingQueue));
+        producer0.start();
+        producer1.start();
+        consumer.start();
 
-        executor.submit(new Producer(lock, conCondition, proCondition, queue, 10));
-        executor.submit(new Consumer(lock, conCondition, proCondition, queue));
-        executor.submit(new Consumer(lock, conCondition, proCondition, queue));
-        executor.shutdown();
+    }
+
+    private static class Producer implements Runnable {
+
+        private BlockingQueue<Integer> blockingQueue;
+
+        private AtomicInteger atomicInteger;
+
+        public Producer(BlockingQueue<Integer> blockingQueue, AtomicInteger atomicInteger) {
+            this.blockingQueue = blockingQueue;
+            this.atomicInteger = atomicInteger;
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                int value = atomicInteger.incrementAndGet();
+                blockingQueue.put(value);
+                System.out.println("线程:" + Thread.currentThread().getName() + "生产:" + value);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private static class Consumer implements Runnable {
+
+        private BlockingQueue<Integer> blockingQueue;
+
+        public Consumer(BlockingQueue<Integer> blockingQueue) {
+            this.blockingQueue = blockingQueue;
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                Object take = blockingQueue.take();
+                System.out.println("线程:" + Thread.currentThread().getName() + "消费:" + take);
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    private static class BlockingQueue<E> {
+        private Queue<E> queue = new LinkedList<>();
+        private int maxSize;
+        private ReentrantLock reentrantLock = new ReentrantLock();
+        private Condition notFull = reentrantLock.newCondition();
+        private Condition notEmpty = reentrantLock.newCondition();
+
+        public BlockingQueue(int maxSize) {
+            this.maxSize = maxSize;
+        }
+
+        public E take() {
+            E e = null;
+            reentrantLock.lock();
+            try {
+                while (queue.size() == 0) {
+                    notEmpty.await();
+                }
+                e = queue.poll();
+                notFull.signal();
+            } catch (InterruptedException ie) {
+                ie.printStackTrace();
+            } finally {
+                reentrantLock.unlock();
+            }
+            return e;
+        }
+
+        public void put(E e) {
+            reentrantLock.lock();
+            try {
+                while (queue.size() >= maxSize) {
+                    notFull.await();
+                }
+                queue.offer(e);
+                notEmpty.signal();
+            } catch (InterruptedException ie) {
+                ie.printStackTrace();
+            } finally {
+                reentrantLock.unlock();
+            }
+        }
     }
 }

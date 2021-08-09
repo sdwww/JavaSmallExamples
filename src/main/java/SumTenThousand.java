@@ -15,13 +15,15 @@ public class SumTenThousand {
     private static Lock lock;
 
     public static void main(String[] args) throws InterruptedException {
+        int sum = sum(10000);
+    }
 
+    private static int sum(int n) throws InterruptedException {
         lock = new ReentrantLock();
         //线程数量
         int latchSize = 10;
         latch = new CountDownLatch(latchSize);
 
-        int n = 10000;
         int avg = n / latchSize;
         int rem = n % latchSize;
         int left, right;
@@ -34,13 +36,13 @@ public class SumTenThousand {
         latch.await(); // 等待10个进程完全结束，在进行主线程
 
         System.out.println("sum:" + sum);
-
+        return sum;
     }
 
 
     static class Run implements Runnable {
-        private int left;
-        private int right;
+        private final int left;
+        private final int right;
 
         public Run(int left, int right) {
             this.left = left;
@@ -61,9 +63,6 @@ public class SumTenThousand {
             } finally {
                 lock.unlock();
             }
-
         }
-
     }
-
 }

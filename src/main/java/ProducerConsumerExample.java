@@ -22,9 +22,9 @@ public class ProducerConsumerExample {
 
     private static class Producer implements Runnable {
 
-        private BlockingQueue<Integer> blockingQueue;
+        private final BlockingQueue<Integer> blockingQueue;
 
-        private AtomicInteger atomicInteger;
+        private final AtomicInteger atomicInteger;
 
         public Producer(BlockingQueue<Integer> blockingQueue, AtomicInteger atomicInteger) {
             this.blockingQueue = blockingQueue;
@@ -48,7 +48,7 @@ public class ProducerConsumerExample {
 
     private static class Consumer implements Runnable {
 
-        private BlockingQueue<Integer> blockingQueue;
+        private final BlockingQueue<Integer> blockingQueue;
 
         public Consumer(BlockingQueue<Integer> blockingQueue) {
             this.blockingQueue = blockingQueue;
@@ -69,11 +69,11 @@ public class ProducerConsumerExample {
     }
 
     private static class BlockingQueue<E> {
-        private Queue<E> queue = new LinkedList<>();
-        private int maxSize;
-        private ReentrantLock reentrantLock = new ReentrantLock();
-        private Condition notFull = reentrantLock.newCondition();
-        private Condition notEmpty = reentrantLock.newCondition();
+        private final Queue<E> queue = new LinkedList<>();
+        private final int maxSize;
+        private final ReentrantLock reentrantLock = new ReentrantLock();
+        private final Condition notFull = reentrantLock.newCondition();
+        private final Condition notEmpty = reentrantLock.newCondition();
 
         public BlockingQueue(int maxSize) {
             this.maxSize = maxSize;

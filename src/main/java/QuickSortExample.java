@@ -3,7 +3,6 @@
  */
 public class QuickSortExample {
 
-
     public static void main(String[] args) {
         QuickSortExample mergeSortExample = new QuickSortExample();
         int[] arr = {11, 44, 23, 67, 88, 65, 34, 48, 9, 12};
@@ -13,31 +12,44 @@ public class QuickSortExample {
         }
     }
 
-    private void quickSort(int[] arr, int start, int end) {
-        if (start >= end) {
+    public void quickSort(int[] arr, int startIndex, int endIndex) {
+        if (startIndex >= endIndex) {
             return;
         }
-        int pivot = arr[start];
-        int left = start, right = end;
-        while (left < right) {
-            //从右往左扫描，找到第一个比基准值小的元素
+        //找出基准
+        int partition = partition(arr, startIndex, endIndex);
+        //分成两边递归进行
+        quickSort(arr, startIndex, partition - 1);
+        quickSort(arr, partition + 1, endIndex);
+    }
+
+    //找基准
+    private static int partition(int[] arr, int startIndex, int endIndex) {
+        int pivot = arr[startIndex];
+        int left = startIndex;
+        int right = endIndex;
+        while (left != right) {
             while (left < right && arr[right] > pivot) {
                 right--;
             }
-            //从左往右扫描，找到第一个比基准值大的元素
-            while (left < right && arr[left] < pivot) {
+            while (left < right && arr[left] <= pivot) {
                 left++;
             }
+            //找到left比基准大，right比基准小，进行交换
             if (left < right) {
-                int temp = arr[left];
-                arr[left] = arr[right];
-                arr[right] = temp;
+                swap(arr, left, right);
             }
         }
-        arr[left] = pivot;
-        // 1.对前半部分进行排序
-        quickSort(arr, start, left - 1);
-        // 2.对后半部分进行排序
-        quickSort(arr, left + 1, end);
+        //第一轮完成，让left和right重合的位置和基准交换，返回基准的位置
+        swap(arr, startIndex, left);
+        return left;
     }
+
+    //两数交换
+    public static void swap(int[] arr, int i, int j) {
+        int temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+    }
+
 }

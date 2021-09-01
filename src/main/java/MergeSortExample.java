@@ -27,8 +27,11 @@ public class MergeSortExample {
     }
 
     private void merge(int[] arr, int start, int mid, int end, int[] temp) {
+        // i是temp数据索引
         int i = 0;
+        // j和k是对应两段数据的索引
         int j = start, k = mid + 1;
+        // 两个 start->mid 和 mid+1->end
         while (j <= mid && k <= end) {
             if (arr[j] < arr[k]) {
                 temp[i++] = arr[j++];
@@ -36,6 +39,7 @@ public class MergeSortExample {
                 temp[i++] = arr[k++];
             }
         }
+        // 之所以是<=,是因为j++后的数据未同步到temp上
         while (j <= mid) {
             temp[i++] = arr[j++];
         }
@@ -43,6 +47,7 @@ public class MergeSortExample {
             temp[i++] = arr[k++];
         }
 
+        // 从temp拷贝回数组中
         for (int t = 0; t < i; t++) {
             arr[t + start] = temp[t];
         }

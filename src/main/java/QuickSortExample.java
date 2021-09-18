@@ -13,6 +13,7 @@ public class QuickSortExample {
     }
 
     public void quickSort(int[] arr, int startIndex, int endIndex) {
+        // 只剩一个数，直接返回
         if (startIndex >= endIndex) {
             return;
         }

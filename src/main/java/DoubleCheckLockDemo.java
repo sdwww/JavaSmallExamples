@@ -10,9 +10,9 @@ import java.util.concurrent.Executors;
 public class DoubleCheckLockDemo {
 
     public static void main(String[] args) {
-        ExecutorService executorService = Executors.newFixedThreadPool(100);
+        ExecutorService executorService = Executors.newFixedThreadPool(500);
         ConcurrentHashMap<Singleton, String> map = new ConcurrentHashMap<>();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 500; i++) {
             executorService.execute(() -> map.put(Singleton.getInstance(), "1"));
         }
         System.out.println(map.entrySet().size());
@@ -23,6 +23,9 @@ public class DoubleCheckLockDemo {
 
 class Singleton {
     private static volatile Singleton singleton;
+
+    private Singleton() {
+    }
 
     public static Singleton getInstance() {
         if (singleton == null) {

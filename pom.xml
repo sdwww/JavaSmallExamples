@@ -66,6 +66,13 @@
             <version>20.7</version>
         </dependency>
 
+        <!-- Jetty 依赖 -->
+        <dependency>
+            <groupId>org.eclipse.jetty</groupId>
+            <artifactId>jetty-server</artifactId>
+            <version>9.4.55.v20240627</version>
+        </dependency>
+
 
     </dependencies>
 

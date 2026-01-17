@@ -1,0 +1,12 @@
+type Query {
+    user: User
+    book: Book
+}
+type User {
+    id: Int
+    name:String
+}
+type Book {
+    id: Int
+    name:String
+}

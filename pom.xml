@@ -63,7 +63,7 @@
         <dependency>
             <groupId>com.graphql-java</groupId>
             <artifactId>graphql-java</artifactId>
-            <version>20.7</version>
+            <version>21.5</version>
         </dependency>
 
         <!-- Jetty 依赖 -->
@@ -95,8 +95,8 @@
                 <version>3.8.1</version>
                 <configuration>
                     <!-- 指定jdk版本 -->
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>11</source>
+                    <target>11</target>
                     <encoding>UTF-8</encoding>
                     <!-- 跳过测试 -->
                     <skip>false</skip>

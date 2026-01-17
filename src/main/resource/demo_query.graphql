@@ -1,0 +1,10 @@
+query {
+    user {
+        id
+        name
+    }
+    book {
+        id
+        name
+    }
+}

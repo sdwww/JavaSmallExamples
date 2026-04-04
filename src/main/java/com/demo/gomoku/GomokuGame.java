@@ -34,14 +34,14 @@ public class GomokuGame {
     /**
      * 落子
      */
-    public boolean makeMove(int row, int col) {
+    public synchronized boolean makeMove(int row, int col) {
         return makeMove(row, col, currentPlayer);
     }
     
     /**
      * 指定玩家落子
      */
-    public boolean makeMove(int row, int col, int player) {
+    public synchronized boolean makeMove(int row, int col, int player) {
         if (gameOver || !board.isValidMove(row, col)) {
             return false;
         }
@@ -64,7 +64,7 @@ public class GomokuGame {
     /**
      * AI落子
      */
-    public int[] aiMove() {
+    public synchronized int[] aiMove() {
         if (gameOver || currentPlayer != GomokuBoard.WHITE) {
             return null;
         }
@@ -80,20 +80,20 @@ public class GomokuGame {
     /**
      * 重置游戏
      */
-    public void reset() {
+    public synchronized void reset() {
         board.reset();
         currentPlayer = GomokuBoard.BLACK;
         gameOver = false;
         winner = GomokuBoard.EMPTY;
     }
     
-    public void reset(Difficulty difficulty) {
+    public synchronized void reset(Difficulty difficulty) {
         reset();
         this.difficulty = difficulty;
         this.ai.setDifficulty(difficulty);
     }
     
-    public void reset(int level) {
+    public synchronized void reset(int level) {
         reset(Difficulty.fromLevel(level));
     }
     

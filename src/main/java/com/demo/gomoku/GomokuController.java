@@ -118,7 +118,7 @@ public class GomokuController {
      * 重置游戏
      */
     @PostMapping("/reset/{sessionId}")
-    public Map<String, Object> reset(@PathVariable String sessionId,
+    public synchronized Map<String, Object> reset(@PathVariable String sessionId,
                                      @RequestParam(defaultValue = "2") int difficulty) {
         Difficulty diff = Difficulty.fromLevel(difficulty);
         gameService.resetGame(sessionId, diff);

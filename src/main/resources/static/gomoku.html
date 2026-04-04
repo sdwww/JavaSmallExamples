@@ -402,16 +402,25 @@
 
         // 重置游戏
         async function resetGame() {
+            if (isThinking) {
+                console.log('正在思考中，请稍候...');
+                return;
+            }
+            
             const difficulty = getDifficulty();
             try {
+                console.log('开始重置游戏...');
                 const response = await fetch(`/api/gomoku/reset/${sessionId}?difficulty=${difficulty}`, {
                     method: 'POST'
                 });
                 const data = await response.json();
+                
+                console.log('重置响应:', data);
 
+                sessionId = data.sessionId;
                 board = data.board;
                 currentPlayer = data.currentPlayer;
-                gameOver = false;
+                gameOver = data.gameOver;
                 lastMove = null;
                 isThinking = false;
 
@@ -420,6 +429,7 @@
 
                 renderBoard();
                 updateCurrentPlayer();
+                console.log('游戏重置完成 - 棋盘:', board, '当前玩家:', currentPlayer, '游戏结束:', gameOver);
             } catch (error) {
                 console.error('重置游戏失败:', error);
                 initGame();
@@ -427,6 +437,8 @@
         }
 
         // 页面加载时初始化
+        // 添加版本号强制刷新缓存
+        console.log('五子棋游戏初始化 - 版本 20260404');
         initGame();
     </script>
 </body>

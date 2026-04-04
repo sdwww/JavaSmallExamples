@@ -111,13 +111,14 @@ public class GomokuGame {
      * @return 是否悔棋成功
      */
     public synchronized boolean undoMove() {
+        // 游戏结束时不允许悔棋
+        if (gameOver) {
+            return false;
+        }
+        
         if (moveHistory.size() < 2) {
             return false; // 至少需要两步（玩家+AI）才能悔棋
         }
-        
-        // 如果游戏已结束，恢复游戏状态
-        gameOver = false;
-        winner = GomokuBoard.EMPTY;
         
         // 撤回AI的最后一步
         int[] lastAiMove = moveHistory.remove(moveHistory.size() - 1);

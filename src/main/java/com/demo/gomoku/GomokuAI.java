@@ -2,6 +2,8 @@ package com.demo.gomoku;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * 五子棋AI引擎 - 增强版
@@ -55,13 +57,14 @@ public class GomokuAI {
         return ZobristHolder.TABLE;
     }
 
-    // ===== 置换表 =====
+    // ===== 置换表（线程安全）=====
     private static final int TT_SIZE = 1 << 22; // ~4M slots
     private static final int TT_MASK = TT_SIZE - 1;
     private final long[] ttKeys = new long[TT_SIZE];
     private final int[] ttScores = new int[TT_SIZE];
     private final int[] ttDepths = new int[TT_SIZE];
     private final byte[] ttFlags = new byte[TT_SIZE]; // 0=空, 1=精确, 2=下界, 3=上界
+    private final ReentrantReadWriteLock ttLock = new ReentrantReadWriteLock();
 
     // ===== 杀手启发 =====
     private final int[][] killerMoves = new int[MAX_DEPTH + 1][2];
@@ -123,8 +126,7 @@ public class GomokuAI {
             if (br >= 0) {
                 // 在黑子周围随机选一个对角位置
                 int[][] offsets = {{1,1},{1,-1},{-1,1},{-1,-1}};
-                Random rand = new Random();
-                int[] offset = offsets[rand.nextInt(offsets.length)];
+                int[] offset = offsets[ThreadLocalRandom.current().nextInt(offsets.length)];
                 int nr = br + offset[0], nc = bc + offset[1];
                 if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] == GomokuBoard.EMPTY) {
                     return new int[]{nr, nc};
@@ -148,7 +150,6 @@ public class GomokuAI {
                 int[] w = whites.get(0);
                 // 在白子附近的空位中选择一个形成潜在威胁的位置
                 int[][] nearOffsets = {{0,1},{0,-1},{1,0},{-1,0},{1,1},{1,-1},{-1,1},{-1,-1}};
-                Random rand = new Random();
                 List<int[]> goodMoves = new ArrayList<>();
                 for (int[] off : nearOffsets) {
                     int nr = w[0] + off[0], nc = w[1] + off[1];
@@ -157,7 +158,7 @@ public class GomokuAI {
                     }
                 }
                 if (!goodMoves.isEmpty()) {
-                    return goodMoves.get(rand.nextInt(goodMoves.size()));
+                    return goodMoves.get(ThreadLocalRandom.current().nextInt(goodMoves.size()));
                 }
             }
         }
@@ -541,8 +542,7 @@ public class GomokuAI {
             }
         }
 
-        Random rand = new Random();
-        return bestMoves.get(rand.nextInt(bestMoves.size()));
+        return bestMoves.get(ThreadLocalRandom.current().nextInt(bestMoves.size()));
     }
 
     /**
@@ -604,28 +604,38 @@ public class GomokuAI {
         return hash;
     }
 
-    // ===== 置换表 =====
+    // ===== 置换表（线程安全）=====
 
     private int ttLookup(long hash, int depth, int alpha, int beta) {
-        int idx = (int) (hash & TT_MASK);
-        if (ttKeys[idx] == hash && ttDepths[idx] >= depth) {
-            int score = ttScores[idx];
-            byte flag = ttFlags[idx];
-            if (flag == 1) return score;                  // 精确值
-            if (flag == 2 && score >= beta) return score;  // 下界
-            if (flag == 3 && score <= alpha) return score; // 上界
+        ttLock.readLock().lock();
+        try {
+            int idx = (int) (hash & TT_MASK);
+            if (ttKeys[idx] == hash && ttDepths[idx] >= depth) {
+                int score = ttScores[idx];
+                byte flag = ttFlags[idx];
+                if (flag == 1) return score;                  // 精确值
+                if (flag == 2 && score >= beta) return score;  // 下界
+                if (flag == 3 && score <= alpha) return score; // 上界
+            }
+            return Integer.MIN_VALUE;
+        } finally {
+            ttLock.readLock().unlock();
         }
-        return Integer.MIN_VALUE;
     }
 
     private void ttStore(long hash, int depth, int score, byte flag) {
-        int idx = (int) (hash & TT_MASK);
-        // 深度优先替换策略
-        if (ttDepths[idx] <= depth) {
-            ttKeys[idx] = hash;
-            ttScores[idx] = score;
-            ttDepths[idx] = depth;
-            ttFlags[idx] = flag;
+        ttLock.writeLock().lock();
+        try {
+            int idx = (int) (hash & TT_MASK);
+            // 深度优先替换策略
+            if (ttDepths[idx] <= depth) {
+                ttKeys[idx] = hash;
+                ttScores[idx] = score;
+                ttDepths[idx] = depth;
+                ttFlags[idx] = flag;
+            }
+        } finally {
+            ttLock.writeLock().unlock();
         }
     }
 

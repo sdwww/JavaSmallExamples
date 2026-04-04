@@ -61,6 +61,13 @@ public class GomokuController {
         result.put("aiMove", null);
         result.put("aiNeedPoll", false);
         
+        // 参数边界检查
+        if (row < 0 || row >= GomokuBoard.BOARD_SIZE || col < 0 || col >= GomokuBoard.BOARD_SIZE) {
+            result.putAll(buildState(game, sessionId));
+            result.put("error", "无效的落子位置");
+            return result;
+        }
+        
         if (game.isGameOver()) {
             result.putAll(buildState(game, sessionId));
             result.put("error", "游戏已结束");

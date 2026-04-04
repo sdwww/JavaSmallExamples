@@ -8,6 +8,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import javax.annotation.PreDestroy;
 
 /**
  * 五子棋游戏服务（线程安全）
@@ -209,5 +212,21 @@ public class GameService {
      */
     public int getGameCount() {
         return games.size();
+    }
+    
+    /**
+     * 优雅关闭线程池
+     */
+    @PreDestroy
+    public void shutdown() {
+        aiExecutor.shutdown();
+        try {
+            if (!aiExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                aiExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            aiExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 }

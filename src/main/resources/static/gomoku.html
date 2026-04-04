@@ -305,6 +305,12 @@
             transform: none;
             box-shadow: none;
         }
+        button.export-btn {
+            background: #9C27B0;
+        }
+        button.export-btn:hover {
+            background: #7B1FA2;
+        }
         
         /* 移动端适配 */
         @media (max-width: 768px) {
@@ -406,6 +412,7 @@
     <div class="controls">
         <button onclick="resetGame()">重新开始</button>
         <button class="undo-btn" id="undoBtn" onclick="undoMove()" disabled>悔棋</button>
+        <button class="export-btn" onclick="exportBoardImage()">📷 导出棋谱</button>
     </div>
 
     <script>
@@ -420,6 +427,7 @@
         let aiThinkStartTime = 0; // AI思考开始时间
         let soundEnabled = true; // 音效开关
         let audioContext = null; // 音频上下文
+        let moveOrder = []; // 落子顺序记录 [{row, col, player}]
 
         // 初始化音频
         function initAudio() {
@@ -551,6 +559,7 @@
             document.getElementById('message').className = '';
             updateUndoButton(false);
             updateHistory([]);
+            moveOrder = []; // 清空落子记录
             
             // 添加移动端手势支持（只在触摸设备上）
             if ('ontouchstart' in window) {
@@ -998,14 +1007,144 @@
             if (btn) btn.disabled = !canUndo;
         }
         
-        // 更新棋谱显示
+        // 导出棋盘为图片
+        function exportBoardImage() {
+            if (!board || board.length === 0) {
+                alert('当前没有棋盘数据');
+                return;
+            }
+            
+            try {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                // 设置画布大小（15x15格子，每格40px，加上边距和坐标）
+                const cellSize = 40;
+                const margin = 30;
+                const labelWidth = 25;
+                const width = margin + labelWidth + BOARD_SIZE * cellSize + margin;
+                const height = margin + labelWidth + BOARD_SIZE * cellSize + margin;
+                canvas.width = width;
+                canvas.height = height;
+                
+                // 背景色
+                ctx.fillStyle = '#DEB887';
+                ctx.fillRect(0, 0, width, height);
+                
+                // 标题
+                ctx.fillStyle = '#333';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('五子棋棋谱', width / 2, 20);
+                
+                // 绘制网格线
+                ctx.strokeStyle = '#8B7355';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < BOARD_SIZE; i++) {
+                    // 横线
+                    const y = margin + labelWidth + i * cellSize + cellSize / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(margin + labelWidth, y);
+                    ctx.lineTo(margin + labelWidth + (BOARD_SIZE - 1) * cellSize, y);
+                    ctx.stroke();
+                    
+                    // 竖线
+                    const x = margin + labelWidth + i * cellSize + cellSize / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(x, margin + labelWidth);
+                    ctx.lineTo(x, margin + labelWidth + (BOARD_SIZE - 1) * cellSize);
+                    ctx.stroke();
+                }
+                
+                // 绘制坐标标签
+                ctx.fillStyle = '#5a4a3a';
+                ctx.font = 'bold 11px Arial';
+                ctx.textAlign = 'center';
+                // 列标签 A-O
+                for (let j = 0; j < BOARD_SIZE; j++) {
+                    const x = margin + labelWidth + j * cellSize + cellSize / 2;
+                    const label = String.fromCharCode(65 + j);
+                    ctx.fillText(label, x, margin + labelWidth - 5);
+                }
+                // 行标签 1-15
+                ctx.textAlign = 'right';
+                for (let i = 0; i < BOARD_SIZE; i++) {
+                    const y = margin + labelWidth + i * cellSize + cellSize / 2 + 4;
+                    ctx.fillText((i + 1).toString(), margin + labelWidth - 5, y);
+                }
+                
+                // 绘制棋子（带序号）
+                const pieceRadius = cellSize * 0.4;
+                moveOrder.forEach((move, idx) => {
+                    const { row, col, player } = move;
+                    const cx = margin + labelWidth + col * cellSize + cellSize / 2;
+                    const cy = margin + labelWidth + row * cellSize + cellSize / 2;
+                    
+                    // 棋子阴影
+                    ctx.beginPath();
+                    ctx.arc(cx + 2, cy + 2, pieceRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                    ctx.fill();
+                    
+                    // 棋子本体
+                    const gradient = ctx.createRadialGradient(
+                        cx - pieceRadius * 0.3, cy - pieceRadius * 0.3, 0,
+                        cx, cy, pieceRadius
+                    );
+                    if (player === 1) {
+                        gradient.addColorStop(0, '#555');
+                        gradient.addColorStop(1, '#000');
+                    } else {
+                        gradient.addColorStop(0, '#fff');
+                        gradient.addColorStop(1, '#ccc');
+                    }
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, pieceRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+                    
+                    // 序号
+                    ctx.fillStyle = player === 1 ? '#fff' : '#000';
+                    ctx.font = `bold ${Math.max(9, pieceRadius * 0.6)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText((idx + 1).toString(), cx, cy);
+                });
+                
+                // 下载图片
+                const link = document.createElement('a');
+                link.download = `gomoku_${Date.now()}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                
+            } catch (error) {
+                console.error('导出失败:', error);
+                alert('导出失败，请重试');
+            }
+        }
+        
+        // 更新棋谱显示（同时重建落子顺序）
         function updateHistory(historyList) {
             const listEl = document.getElementById('historyList');
             if (!listEl) return;
             
             if (!historyList || historyList.length === 0) {
                 listEl.innerHTML = '<div style="color:rgba(255,255,255,0.5);text-align:center;padding:20px 0;">暂无落子</div>';
+                moveOrder = [];
                 return;
+            }
+            
+            // 从历史文本中解析落子顺序
+            moveOrder = [];
+            for (let text of historyList) {
+                // 格式: "1. 黑 H7" -> 提取玩家和坐标
+                const match = text.match(/\d+\.\s*(黑|白)\s*([A-O])(\d+)/);
+                if (match) {
+                    const player = match[1] === '黑' ? 1 : 2;
+                    const col = match[2].charCodeAt(0) - 65; // A=0, B=1...
+                    const row = parseInt(match[3]) - 1; // 1-based to 0-based
+                    moveOrder.push({ row, col, player });
+                }
             }
             
             listEl.innerHTML = '';

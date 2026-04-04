@@ -293,19 +293,37 @@
                     // 如果需要轮询获取AI落子
                     if (data.aiNeedPoll) {
                         await pollAiMove();
+                        // 轮询结束后，再次检查游戏状态（AI可能获胜）
+                        if (gameOver) {
+                            // gameOver 已经在 pollAiMove 中更新，消息也已设置
+                        } else {
+                            updateCurrentPlayer();
+                            document.getElementById('message').textContent = '';
+                            document.getElementById('message').className = '';
+                        }
                     } else if (data.aiMove) {
                         // 兼容模式：直接获取AI落子
                         highlightMove(data.aiMove[0], data.aiMove[1]);
-                    }
-
-                    // 检查游戏是否结束（玩家落子后可能获胜）
-                    if (gameOver && data.winnerText) {
-                        document.getElementById('message').textContent = data.winnerText;
-                        document.getElementById('message').className = 'game-over';
+                        // 检查AI落子后游戏是否结束
+                        if (data.gameOver && data.winnerText) {
+                            gameOver = data.gameOver;
+                            document.getElementById('message').textContent = data.winnerText;
+                            document.getElementById('message').className = 'game-over';
+                        } else {
+                            updateCurrentPlayer();
+                            document.getElementById('message').textContent = '';
+                            document.getElementById('message').className = '';
+                        }
                     } else {
-                        updateCurrentPlayer();
-                        document.getElementById('message').textContent = '';
-                        document.getElementById('message').className = '';
+                        // 玩家落子后获胜的情况
+                        if (gameOver && data.winnerText) {
+                            document.getElementById('message').textContent = data.winnerText;
+                            document.getElementById('message').className = 'game-over';
+                        } else {
+                            updateCurrentPlayer();
+                            document.getElementById('message').textContent = '';
+                            document.getElementById('message').className = '';
+                        }
                     }
                 } else if (data.error) {
                     document.getElementById('message').textContent = data.error;

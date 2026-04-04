@@ -1,10 +1,19 @@
 package com.demo.gomoku;
 
 /**
- * 棋型评估器 - 支持跳跃棋型识别与线型扫描
+ * 棋型评估器 - 单例模式，支持跳跃棋型识别与线型扫描
  * 跳跃棋型示例：XX_XX(跳跃四)、X_XXX(跳跃四)、P_PP(跳跃活三) 等
  */
 public class PatternEvaluator {
+
+    private static final PatternEvaluator INSTANCE = new PatternEvaluator();
+    
+    public static PatternEvaluator getInstance() {
+        return INSTANCE;
+    }
+    
+    // 私有构造函数防止外部实例化
+    private PatternEvaluator() {}
 
     // 棋型分数（基于线型单次计分，数值已调整）
     public static final int SCORE_FIVE = 10000000;

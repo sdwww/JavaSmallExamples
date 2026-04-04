@@ -81,8 +81,8 @@ public class GomokuAI {
     private volatile long searchStartTime = 0; // 搜索开始时间（用于minmax内部超时检查）
 
     public GomokuAI(Difficulty difficulty) {
-        this.evaluator = new PatternEvaluator();
-        this.threatDetector = new ThreatDetector();
+        this.evaluator = PatternEvaluator.getInstance();
+        this.threatDetector = new ThreatDetector(evaluator);
         this.difficulty = difficulty;
     }
 

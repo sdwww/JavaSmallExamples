@@ -13,7 +13,11 @@ public class ThreatDetector {
     private final PatternEvaluator evaluator;
 
     public ThreatDetector() {
-        this.evaluator = new PatternEvaluator();
+        this.evaluator = PatternEvaluator.getInstance();
+    }
+    
+    public ThreatDetector(PatternEvaluator evaluator) {
+        this.evaluator = evaluator;
     }
 
     /**

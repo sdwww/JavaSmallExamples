@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋 - AI对战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        h1 {
+            color: white;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .info {
+            color: white;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .info span {
+            font-weight: bold;
+        }
+        .black-text { color: #1a1a1a; }
+        .white-text { color: #f0f0f0; text-shadow: 1px 1px 1px #333; }
+        
+        .difficulty-select {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .difficulty-select label {
+            color: white;
+            font-weight: bold;
+        }
+        .difficulty-select select {
+            padding: 8px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.9);
+            cursor: pointer;
+        }
+        .difficulty-select select:hover {
+            background: rgba(255,255,255,1);
+        }
+        
+        .board-container {
+            background: #DEB887;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(15, 32px);
+            grid-template-rows: repeat(15, 32px);
+            gap: 0;
+            background: #DEB887;
+        }
+        .cell {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #8B7355;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+        }
+        .cell:hover:not(.occupied) {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        .cell.disabled {
+            cursor: not-allowed;
+        }
+        .piece {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .piece.black {
+            background: radial-gradient(circle at 30% 30%, #555, #000);
+        }
+        .piece.white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+        }
+        .piece.last {
+            box-shadow: 0 0 0 3px #4CAF50, 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+        }
+        button {
+            padding: 12px 30px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button.difficulty-btn {
+            background: #2196F3;
+        }
+        button.difficulty-btn:hover {
+            background: #1976D2;
+        }
+        #message {
+            margin-top: 15px;
+            font-size: 20px;
+            color: #FFD700;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            min-height: 30px;
+        }
+        .game-over {
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .thinking {
+            color: #90CAF9 !important;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>五子棋 - AI对战</h1>
+    <div class="info">
+        <span>当前: <span id="currentPlayer" class="black-text">●</span></span>
+        <div class="difficulty-select">
+            <label>难度:</label>
+            <select id="difficulty">
+                <option value="1">简单</option>
+                <option value="2" selected>中等</option>
+                <option value="3">困难</option>
+            </select>
+            <button class="difficulty-btn" onclick="applyDifficulty()">应用难度</button>
+        </div>
+    </div>
+    <div class="board-container">
+        <div id="board"></div>
+    </div>
+    <div id="message"></div>
+    <div class="controls">
+        <button onclick="resetGame()">重新开始</button>
+    </div>
+
+    <script>
+        const BOARD_SIZE = 15;
+        let sessionId = null;
+        let board = [];
+        let currentPlayer = 1;
+        let gameOver = false;
+        let lastMove = null;
+        let isThinking = false;
+
+        // 初始化棋盘
+        function initBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                for (let j = 0; j < BOARD_SIZE; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.onclick = () => makeMove(i, j);
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        // 获取难度
+        function getDifficulty() {
+            return parseInt(document.getElementById('difficulty').value);
+        }
+
+        // 应用难度
+        async function applyDifficulty() {
+            if (!sessionId) {
+                initGame();
+                return;
+            }
+            const difficulty = getDifficulty();
+            try {
+                await fetch(`/api/gomoku/reset/${sessionId}?difficulty=${difficulty}`, {
+                    method: 'POST'
+                });
+                initGame();
+            } catch (error) {
+                console.error('设置难度失败:', error);
+                initGame();
+            }
+        }
+
+        // 初始化游戏
+        async function initGame() {
+            try {
+                const difficulty = getDifficulty();
+                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}`);
+                const data = await response.json();
+                sessionId = data.sessionId;
+                board = data.board;
+                currentPlayer = data.currentPlayer;
+                gameOver = data.gameOver;
+                renderBoard();
+                updateCurrentPlayer();
+                document.getElementById('message').textContent = '';
+                document.getElementById('message').className = '';
+            } catch (error) {
+                console.error('初始化游戏失败:', error);
+                initBoard();
+            }
+        }
+
+        // 渲染棋盘
+        function renderBoard() {
+            const cells = document.getElementById('board').children;
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                for (let j = 0; j < BOARD_SIZE; j++) {
+                    const cellIndex = i * BOARD_SIZE + j;
+                    const cell = cells[cellIndex];
+                    cell.innerHTML = '';
+                    cell.className = 'cell';
+                    
+                    if (currentPlayer === 2 && !gameOver) {
+                        cell.classList.add('disabled');
+                    }
+
+                    if (board[i][j] !== 0) {
+                        cell.classList.add('occupied');
+                        cell.classList.remove('disabled');
+                        const piece = document.createElement('div');
+                        piece.className = 'piece ' + (board[i][j] === 1 ? 'black' : 'white');
+                        cell.appendChild(piece);
+                    }
+                }
+            }
+        }
+
+        // 落子
+        async function makeMove(row, col) {
+            if (gameOver || board[row][col] !== 0 || currentPlayer !== 1 || isThinking) return;
+
+            try {
+                isThinking = true;
+                document.getElementById('message').textContent = 'AI思考中...';
+                document.getElementById('message').className = 'thinking';
+
+                const response = await fetch(`/api/gomoku/move/${sessionId}?row=${row}&col=${col}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                if (data.playerMoveSuccess) {
+                    // 更新棋盘
+                    board = data.board;
+                    gameOver = data.gameOver;
+                    currentPlayer = data.currentPlayer;
+                    
+                    renderBoard();
+                    
+                    // 高亮玩家落子
+                    if (data.playerMove) {
+                        highlightMove(data.playerMove[0], data.playerMove[1]);
+                    }
+                    
+                    // 高亮AI落子
+                    if (data.aiMove) {
+                        highlightMove(data.aiMove[0], data.aiMove[1]);
+                    }
+
+                    if (gameOver) {
+                        document.getElementById('message').textContent = data.winnerText;
+                        document.getElementById('message').className = 'game-over';
+                    } else {
+                        updateCurrentPlayer();
+                        document.getElementById('message').textContent = '';
+                        document.getElementById('message').className = '';
+                    }
+                } else if (data.error) {
+                    document.getElementById('message').textContent = data.error;
+                    document.getElementById('message').className = '';
+                }
+            } catch (error) {
+                console.error('落子失败:', error);
+            } finally {
+                isThinking = false;
+            }
+        }
+
+        // 高亮落子
+        function highlightMove(row, col) {
+            const cellIndex = row * BOARD_SIZE + col;
+            const cell = document.getElementById('board').children[cellIndex];
+            const piece = cell.querySelector('.piece');
+            if (piece) piece.classList.add('last');
+            lastMove = { row, col };
+        }
+
+        // 更新当前玩家显示
+        function updateCurrentPlayer() {
+            const playerEl = document.getElementById('currentPlayer');
+            if (currentPlayer === 1) {
+                playerEl.textContent = '● (你)';
+                playerEl.className = 'black-text';
+            } else {
+                playerEl.textContent = '● (AI)';
+                playerEl.className = 'white-text';
+            }
+        }
+
+        // 重置游戏
+        async function resetGame() {
+            const difficulty = getDifficulty();
+            try {
+                const response = await fetch(`/api/gomoku/reset/${sessionId}?difficulty=${difficulty}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                board = data.board;
+                currentPlayer = data.currentPlayer;
+                gameOver = false;
+                lastMove = null;
+                isThinking = false;
+
+                document.getElementById('message').textContent = '';
+                document.getElementById('message').className = '';
+
+                renderBoard();
+                updateCurrentPlayer();
+            } catch (error) {
+                console.error('重置游戏失败:', error);
+                initGame();
+            }
+        }
+
+        // 页面加载时初始化
+        initGame();
+    </script>
+</body>
+</html>

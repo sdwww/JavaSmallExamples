@@ -6,51 +6,58 @@ import java.util.Set;
 import java.util.HashSet;
 
 /**
- * 威胁检测器 - 检测棋盘上的关键威胁
+ * 威胁检测器 - 检测棋盘上的关键威胁（支持跳跃棋型）
  */
 public class ThreatDetector {
-    
+
     private final PatternEvaluator evaluator;
-    
+
     public ThreatDetector() {
         this.evaluator = new PatternEvaluator();
     }
-    
+
     /**
-     * 检查是否有必胜或必防的棋步（增强版）
-     * @param board 棋盘
+     * 检查是否有必胜或必防的棋步
      * @return 需要落子的位置，或 null
      */
     public int[] findImmediateWinOrBlock(int[][] board) {
-        // 1. 检查 AI 是否能一步获胜
+        // 1. AI一步获胜
         int[] winMove = findOneMoveWin(board, GomokuBoard.WHITE);
         if (winMove != null) return winMove;
-        
-        // 2. 检查玩家是否能一步获胜，必须拦截
+
+        // 2. 玩家一步获胜，必须拦截
         int[] blockWin = findOneMoveWin(board, GomokuBoard.BLACK);
         if (blockWin != null) return blockWin;
-        
-        // 3. 检查玩家的组合威胁（双活三/四三）
+
+        // 3. AI的跳跃四连（填空即五连）
+        int[] aiJumpFour = findJumpFour(board, GomokuBoard.WHITE);
+        if (aiJumpFour != null) return aiJumpFour;
+
+        // 4. 玩家的跳跃四连（必须拦截）
+        int[] blockJumpFour = findJumpFour(board, GomokuBoard.BLACK);
+        if (blockJumpFour != null) return blockJumpFour;
+
+        // 5. 玩家的组合威胁（双活三/四三）
         int[] comboThreat = findComboThreat(board, GomokuBoard.BLACK);
         if (comboThreat != null) return comboThreat;
-        
-        // 4. 检查玩家的冲四威胁
+
+        // 6. 玩家的冲四威胁
         int[] rushFour = findRushFourThreat(board, GomokuBoard.BLACK);
         if (rushFour != null) return rushFour;
-        
-        // 5. 检查 AI 的冲四进攻机会
+
+        // 7. AI的冲四进攻
         int[] aiRushFour = findRushFourThreat(board, GomokuBoard.WHITE);
         if (aiRushFour != null) return aiRushFour;
-        
-        // 6. 检查玩家的活三威胁
+
+        // 8. 玩家的活三威胁
         int[] liveThree = findLiveThreeThreat(board, GomokuBoard.BLACK);
         if (liveThree != null) return liveThree;
-        
+
         return null;
     }
-    
+
     /**
-     * 查找一步就能获胜的位置
+     * 查找一步获胜的位置
      */
     public int[] findOneMoveWin(int[][] board, int player) {
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
@@ -67,9 +74,52 @@ public class ThreatDetector {
         }
         return null;
     }
-    
+
     /**
-     * 查找冲四威胁（落子后形成4连，一端被封）
+     * 查找跳跃四连（如 XX_XX, X_XXX, PPP_P 等）
+     * 填补空位即可形成五连
+     */
+    public int[] findJumpFour(int[][] board, int player) {
+        int n = GomokuBoard.BOARD_SIZE;
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (board[i][j] != GomokuBoard.EMPTY) continue;
+                if (player == GomokuBoard.EMPTY) continue;
+
+                // 尝试在此处落子，检查是否形成跳跃四连模式
+                // 即：该位置是某个四子(含一空)组的空位
+                board[i][j] = player;
+                // 检查四个方向是否存在"四子含此位"的模式
+                for (int[] dir : GomokuBoard.DIRECTIONS) {
+                    int total = 1;
+                    // 正方向
+                    int r = i + dir[0], c = j + dir[1];
+                    while (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == player) {
+                        total++;
+                        r += dir[0];
+                        c += dir[1];
+                    }
+                    // 反方向
+                    r = i - dir[0];
+                    c = j - dir[1];
+                    while (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == player) {
+                        total++;
+                        r -= dir[0];
+                        c -= dir[1];
+                    }
+                    if (total >= 4) {
+                        board[i][j] = GomokuBoard.EMPTY;
+                        return new int[]{i, j};
+                    }
+                }
+                board[i][j] = GomokuBoard.EMPTY;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 查找冲四威胁
      */
     public int[] findRushFourThreat(int[][] board, int opponent) {
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
@@ -86,9 +136,9 @@ public class ThreatDetector {
         }
         return null;
     }
-    
+
     /**
-     * 查找活三威胁（落子后形成活三）
+     * 查找活三威胁
      */
     public int[] findLiveThreeThreat(int[][] board, int opponent) {
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
@@ -105,17 +155,15 @@ public class ThreatDetector {
         }
         return null;
     }
-    
+
     /**
      * 检查落子后是否形成指定棋型
-     * @param requireLive 是否要求是活棋型（两端都空）
      */
     private boolean hasPatternWithCheck(int[][] board, int row, int col, int player, int targetCount, boolean requireLive) {
         for (int[] dir : GomokuBoard.DIRECTIONS) {
             int count = 1;
             int emptyEnds = 0;
-            
-            // 正方向
+
             int r = row + dir[0], c = col + dir[1];
             while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
                 count++;
@@ -125,8 +173,7 @@ public class ThreatDetector {
             if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
                 emptyEnds++;
             }
-            
-            // 反方向
+
             r = row - dir[0];
             c = col - dir[1];
             while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
@@ -137,7 +184,7 @@ public class ThreatDetector {
             if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
                 emptyEnds++;
             }
-            
+
             if (count >= targetCount) {
                 if (!requireLive || emptyEnds == 2) {
                     return true;
@@ -146,24 +193,23 @@ public class ThreatDetector {
         }
         return false;
     }
-    
+
     /**
-     * 检测双活三/四三组合（极高威胁）
+     * 检测双活三/四三组合
      */
     public int[] findComboThreat(int[][] board, int opponent) {
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
             for (int j = 0; j < GomokuBoard.BOARD_SIZE; j++) {
                 if (board[i][j] == GomokuBoard.EMPTY) {
                     board[i][j] = opponent;
-                    
+
                     int liveThreeCount = 0;
                     int rushFourCount = 0;
-                    
+
                     for (int[] dir : GomokuBoard.DIRECTIONS) {
                         int count = 1;
                         int emptyEnds = 0;
-                        
-                        // 正方向
+
                         int r = i + dir[0], c = j + dir[1];
                         while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == opponent) {
                             count++;
@@ -173,8 +219,7 @@ public class ThreatDetector {
                         if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
                             emptyEnds++;
                         }
-                        
-                        // 反方向
+
                         r = i - dir[0];
                         c = j - dir[1];
                         while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == opponent) {
@@ -185,13 +230,13 @@ public class ThreatDetector {
                         if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
                             emptyEnds++;
                         }
-                        
+
                         if (count >= 4 && emptyEnds >= 1) rushFourCount++;
                         if (count == 3 && emptyEnds == 2) liveThreeCount++;
                     }
-                    
+
                     board[i][j] = GomokuBoard.EMPTY;
-                    
+
                     // 双活三或四三组合
                     if (liveThreeCount >= 2 || (rushFourCount >= 1 && liveThreeCount >= 1)) {
                         return new int[]{i, j};
@@ -201,16 +246,13 @@ public class ThreatDetector {
         }
         return null;
     }
-    
+
     /**
      * 获取候选落子位置
-     * @param searchRange 搜索范围
-     * @param sortByScore 是否按评分排序
-     * @param limit 限制返回数量（0表示不限制）
      */
     public List<int[]> getCandidateMoves(int[][] board, int searchRange, boolean sortByScore, int limit) {
         Set<String> candidates = new HashSet<>();
-        
+
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
             for (int j = 0; j < GomokuBoard.BOARD_SIZE; j++) {
                 if (board[i][j] != GomokuBoard.EMPTY) {
@@ -218,8 +260,8 @@ public class ThreatDetector {
                         for (int dj = -searchRange; dj <= searchRange; dj++) {
                             int ni = i + di;
                             int nj = j + dj;
-                            if (ni >= 0 && ni < GomokuBoard.BOARD_SIZE && nj >= 0 && nj < GomokuBoard.BOARD_SIZE 
-                                && board[ni][nj] == GomokuBoard.EMPTY) {
+                            if (ni >= 0 && ni < GomokuBoard.BOARD_SIZE && nj >= 0 && nj < GomokuBoard.BOARD_SIZE
+                                    && board[ni][nj] == GomokuBoard.EMPTY) {
                                 candidates.add(ni + "," + nj);
                             }
                         }
@@ -227,8 +269,7 @@ public class ThreatDetector {
                 }
             }
         }
-        
-        // 如果棋盘为空，返回中心区域
+
         if (candidates.isEmpty()) {
             int center = GomokuBoard.BOARD_SIZE / 2;
             for (int di = -2; di <= 2; di++) {
@@ -241,14 +282,13 @@ public class ThreatDetector {
                 }
             }
         }
-        
+
         List<int[]> result = new ArrayList<>();
         for (String pos : candidates) {
             String[] parts = pos.split(",");
             result.add(new int[]{Integer.parseInt(parts[0]), Integer.parseInt(parts[1])});
         }
-        
-        // 按评分排序
+
         if (sortByScore) {
             PatternEvaluator eval = this.evaluator;
             int center = GomokuBoard.BOARD_SIZE / 2;
@@ -257,32 +297,18 @@ public class ThreatDetector {
                 int scoreB = eval.quickEvaluate(board, b[0], b[1]);
                 int distA = Math.abs(a[0] - center) + Math.abs(a[1] - center);
                 int distB = Math.abs(b[0] - center) + Math.abs(b[1] - center);
-                return (scoreB + Math.max(0, 15 - distB) * 10) - 
+                return (scoreB + Math.max(0, 15 - distB) * 10) -
                        (scoreA + Math.max(0, 15 - distA) * 10);
             });
         }
-        
-        // 限制返回数量
+
         if (limit > 0 && result.size() > limit) {
             result = result.subList(0, limit);
         }
-        
+
         return result;
     }
-    
-    /**
-     * 检查某个位置是否形成了指定数量的连子（任意方向）
-     */
-    public boolean hasPattern(int[][] board, int row, int col, int player, int count) {
-        for (int[] dir : GomokuBoard.DIRECTIONS) {
-            int c = 1;
-            c += evaluator.countInDirection(board, row, col, player, dir[0], dir[1]);
-            c += evaluator.countInDirection(board, row, col, player, -dir[0], -dir[1]);
-            if (c >= count) return true;
-        }
-        return false;
-    }
-    
+
     /**
      * 检查是否五子连珠
      */
@@ -295,12 +321,5 @@ public class ThreatDetector {
             if (count >= 5) return true;
         }
         return false;
-    }
-    
-    /**
-     * 检查是否活三
-     */
-    public boolean isLiveThree(int[][] board, int row, int col, int player) {
-        return evaluator.isLiveThree(board, row, col, player);
     }
 }

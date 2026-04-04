@@ -5,8 +5,8 @@ package com.demo.gomoku;
  */
 public enum Difficulty {
     EASY(1, "简单", 1.5, 4, 20),
-    MEDIUM(2, "中等", 1.7, 5, 25),
-    HARD(3, "困难", 2.0, 6, 30);
+    MEDIUM(2, "中等", 1.7, 5, 30),
+    HARD(3, "困难", 2.0, 6, 50);
 
     private final int level;
     private final String name;
@@ -32,6 +32,6 @@ public enum Difficulty {
         for (Difficulty d : values()) {
             if (d.level == level) return d;
         }
-        return MEDIUM; // 默认中等难度
+        return MEDIUM;
     }
 }

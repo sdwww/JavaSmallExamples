@@ -24,17 +24,17 @@ public class GomokuGame {
     
     // 棋型分数（提高差距，让AI更重视高级棋型）
     private static final int SCORE_FIVE = 10000000;
-    private static final int SCORE_FOUR = 1000000;
-    private static final int SCORE_RUSH_FOUR = 100000;
-    private static final int SCORE_LIVE_THREE = 50000;
-    private static final int SCORE_SLEEP_THREE = 5000;
-    private static final int SCORE_LIVE_TWO = 2000;
-    private static final int SCORE_SLEEP_TWO = 200;
-    private static final int SCORE_ONE = 10;
+    private static final int SCORE_FOUR = 2000000;
+    private static final int SCORE_RUSH_FOUR = 500000;
+    private static final int SCORE_LIVE_THREE = 100000;
+    private static final int SCORE_SLEEP_THREE = 15000;
+    private static final int SCORE_LIVE_TWO = 3000;
+    private static final int SCORE_SLEEP_TWO = 300;
+    private static final int SCORE_ONE = 20;
     
     // AI 搜索配置（优化后）
-    private static final int MAX_SEARCH_TIME_MS = 3000; // 增加思考时间至 3 秒
-    private static final int MAX_DEPTH = 6; // 困难模式最大深度增至 6
+    private static final int MAX_SEARCH_TIME_MS = 12000; // 增加思考时间至 12 秒
+    private static final int MAX_DEPTH = 12; // 困难模式最大深度增至 12
     
     private int[][] board;
     private int currentPlayer;
@@ -153,42 +153,185 @@ public class GomokuGame {
     }
     
     /**
-     * 检查是否有必胜或必防的棋步（优化棋力）
-     * 注意：此处不受搜索范围限制，全盘扫描相邻空位
+     * 检查是否有必胜或必防的棋步（增强版）
      */
     private int[] findImmediateWinOrBlock() {
-        // 获取所有相关的空位（扩大扫描范围至全盘 2 格内）
-        List<int[]> allCandidates = getCandidateMoves(2, false, 0);
-        
         // 1. 检查 AI 是否能一步获胜
-        for (int[] move : allCandidates) {
-            board[move[0]][move[1]] = WHITE;
-            if (checkWin(move[0], move[1])) {
-                board[move[0]][move[1]] = EMPTY;
-                return move;
-            }
-            board[move[0]][move[1]] = EMPTY;
-        }
+        int[] winMove = findOneMoveWin(WHITE);
+        if (winMove != null) return winMove;
         
         // 2. 检查玩家是否能一步获胜，必须拦截
+        int[] blockWin = findOneMoveWin(BLACK);
+        if (blockWin != null) return blockWin;
+        
+        // 3. 检查玩家的组合威胁（双活三/四三）
+        int[] comboThreat = findComboThreat(BLACK);
+        if (comboThreat != null) return comboThreat;
+        
+        // 4. 检查玩家的冲四威胁
+        int[] rushFour = findRushFourThreat(BLACK);
+        if (rushFour != null) return rushFour;
+        
+        // 5. 检查 AI 的冲四进攻机会
+        int[] aiRushFour = findRushFourThreat(WHITE);
+        if (aiRushFour != null) return aiRushFour;
+        
+        // 6. 检查玩家的活三威胁
+        int[] liveThree = findLiveThreeThreat(BLACK);
+        if (liveThree != null) return liveThree;
+        
+        return null;
+    }
+    
+    /**
+     * 查找一步就能获胜的位置
+     */
+    private int[] findOneMoveWin(int player) {
+        // 全盘扫描所有空位
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] == EMPTY) {
+                    board[i][j] = player;
+                    if (checkWin(i, j)) {
+                        board[i][j] = EMPTY;
+                        return new int[]{i, j};
+                    }
+                    board[i][j] = EMPTY;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 查找冲四威胁（落子后形成4连，一端被封）
+     */
+    private int[] findRushFourThreat(int opponent) {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] == EMPTY) {
+                    board[i][j] = opponent;
+                    if (hasPatternWithCheck(i, j, opponent, 4, false)) {
+                        board[i][j] = EMPTY;
+                        return new int[]{i, j};
+                    }
+                    board[i][j] = EMPTY;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 查找活三威胁（落子后形成活三）
+     */
+    private int[] findLiveThreeThreat(int opponent) {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] == EMPTY) {
+                    board[i][j] = opponent;
+                    if (hasPatternWithCheck(i, j, opponent, 3, true)) {
+                        board[i][j] = EMPTY;
+                        return new int[]{i, j};
+                    }
+                    board[i][j] = EMPTY;
+                }
+            }
+        }
+        return null;
+    }
+    
+    /**
+     * 检查落子后是否形成指定棋型
+     * @param requireLive 是否要求是活棋型（两端都空）
+     */
+    private boolean hasPatternWithCheck(int row, int col, int player, int targetCount, boolean requireLive) {
+        for (int[] dir : DIRECTIONS) {
+            int count = 1;
+            int emptyEnds = 0;
+            
+            // 正方向
+            int r = row + dir[0], c = col + dir[1];
+            while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == player) {
+                count++;
+                r += dir[0];
+                c += dir[1];
+            }
+            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == EMPTY) {
+                emptyEnds++;
+            }
+            
+            // 反方向
+            r = row - dir[0];
+            c = col - dir[1];
+            while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == player) {
+                count++;
+                r -= dir[0];
+                c -= dir[1];
+            }
+            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == EMPTY) {
+                emptyEnds++;
+            }
+            
+            if (count >= targetCount) {
+                if (!requireLive || emptyEnds == 2) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 查找眠三威胁位置（增强防守）
+     */
+    private int[] findSleepThree(int opponent) {
+        List<int[]> allCandidates = getCandidateMoves(2, false, 0);
+        
         for (int[] move : allCandidates) {
-            board[move[0]][move[1]] = BLACK;
-            if (checkWin(move[0], move[1])) {
-                board[move[0]][move[1]] = EMPTY;
-                return move;
+            board[move[0]][move[1]] = opponent;
+            
+            // 检查是否形成眠三
+            if (hasPattern(move[0], move[1], opponent, 3)) {
+                // 检查是否活三（两端都空）
+                if (!isLiveThree(move[0], move[1], opponent)) {
+                    board[move[0]][move[1]] = EMPTY;
+                    return move;
+                }
             }
             board[move[0]][move[1]] = EMPTY;
         }
-        
-        // 3. 【关键修复】直接扫描棋盘，检查玩家是否已有 4 连或活 3
-        int[] urgentBlock = findCriticalThreat(BLACK);
-        if (urgentBlock != null) return urgentBlock;
-        
-        // 4. 检查 AI 自己是否有 4 连进攻机会
-        int[] aiAttack = findCriticalThreat(WHITE);
-        if (aiAttack != null) return aiAttack;
-        
         return null;
+    }
+    
+    /**
+     * 检查是否是活三（两端无阻碍）
+     */
+    private boolean isLiveThree(int row, int col, int player) {
+        for (int[] dir : DIRECTIONS) {
+            int forward = countInDirection(row, col, player, dir[0], dir[1]);
+            int backward = countInDirection(row, col, player, -dir[0], -dir[1]);
+            
+            if (forward + backward >= 2) {
+                int frontR = row + (forward + 1) * dir[0];
+                int frontC = col + (forward + 1) * dir[1];
+                int backR = row - (backward + 1) * dir[0];
+                int backC = col - (backward + 1) * dir[1];
+                
+                boolean frontEmpty = isValidEmpty(frontR, frontC);
+                boolean backEmpty = isValidEmpty(backR, backC);
+                
+                if (frontEmpty && backEmpty) return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 检查位置是否有效且为空
+     */
+    private boolean isValidEmpty(int row, int col) {
+        return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE && board[row][col] == EMPTY;
     }
     
     /**
@@ -335,8 +478,8 @@ public class GomokuGame {
             long remainingTime = maxTime - (System.currentTimeMillis() - startTime);
             if (remainingTime < 200) break; // 预留200ms
             
-            // 限制候选数量以保证性能（放宽至 25 个）
-            int limit = Math.min(candidates.size(), 25);
+            // 限制候选数量以保证性能（困难模式放宽至 80 个）
+            int limit = Math.min(candidates.size(), 80);
             List<int[]> searchCandidates = candidates.subList(0, limit);
             
             int currentBestScore = Integer.MIN_VALUE;
@@ -387,8 +530,8 @@ public class GomokuGame {
             return evaluateBoard();
         }
         
-        // 限制搜索数量（放宽至 20 个）
-        int limit = Math.min(candidates.size(), 20);
+        // 限制搜索数量（困难模式放宽至 70 个）
+        int limit = Math.min(candidates.size(), 70);
         
         if (isMaximizing) {
             int maxEval = Integer.MIN_VALUE;
@@ -421,7 +564,7 @@ public class GomokuGame {
      * 获取搜索候选位置（带评估排序）
      */
     private List<int[]> getCandidateMovesForSearch() {
-        return getCandidateMoves(difficulty.getSearchRange(), true, 18);
+        return getCandidateMoves(difficulty.getSearchRange(), true, 80);
     }
     
     /**
@@ -600,7 +743,7 @@ public class GomokuGame {
             
             double defenseWeight = difficulty.getDefenseWeight();
             // 困难模式下大幅提高防守权重
-            if (difficulty == Difficulty.HARD) defenseWeight = 1.8;
+            if (difficulty == Difficulty.HARD) defenseWeight = 3.0;
             // 简单/中等模式也提高防守权重以增强难度
             if (difficulty == Difficulty.EASY) defenseWeight = 1.5;
             if (difficulty == Difficulty.MEDIUM) defenseWeight = 1.7;
@@ -653,6 +796,62 @@ public class GomokuGame {
             else if (lineScore >= SCORE_LIVE_TWO) bonus += 5000;
         }
         return bonus;
+    }
+    
+    /**
+     * 检测双活三/四三组合（极高威胁）
+     */
+    private int[] findComboThreat(int opponent) {
+        // 全盘扫描所有空位
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] == EMPTY) {
+                    board[i][j] = opponent;
+                    
+                    int liveThreeCount = 0;
+                    int rushFourCount = 0;
+                    
+                    for (int[] dir : DIRECTIONS) {
+                        int count = 1;
+                        int emptyEnds = 0;
+                        
+                        // 正方向
+                        int r = i + dir[0], c = j + dir[1];
+                        while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == opponent) {
+                            count++;
+                            r += dir[0];
+                            c += dir[1];
+                        }
+                        if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == EMPTY) {
+                            emptyEnds++;
+                        }
+                        
+                        // 反方向
+                        r = i - dir[0];
+                        c = j - dir[1];
+                        while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == opponent) {
+                            count++;
+                            r -= dir[0];
+                            c -= dir[1];
+                        }
+                        if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == EMPTY) {
+                            emptyEnds++;
+                        }
+                        
+                        if (count >= 4 && emptyEnds >= 1) rushFourCount++;
+                        if (count == 3 && emptyEnds == 2) liveThreeCount++;
+                    }
+                    
+                    board[i][j] = EMPTY;
+                    
+                    // 双活三或四三组合
+                    if (liveThreeCount >= 2 || (rushFourCount >= 1 && liveThreeCount >= 1)) {
+                        return new int[]{i, j};
+                    }
+                }
+            }
+        }
+        return null;
     }
     
     private int evaluatePositionQuick(int row, int col, int player) {

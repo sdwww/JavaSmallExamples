@@ -415,11 +415,11 @@ public class GomokuAI {
 
     private int countDir(int[][] board, int row, int col, int player, int dR, int dC) {
         int count = 0;
-        int r = row + dR, c = col + dCol;
+        int r = row + dR, c = col + dC;
         while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
             count++;
             r += dR;
-            c += dCol;
+            c += dC;
         }
         return count;
     }

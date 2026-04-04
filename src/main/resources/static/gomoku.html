@@ -2,8 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>五子棋 - AI对战</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎮</text></svg>">
     <style>
         * {
             margin: 0;
@@ -18,11 +19,13 @@
             flex-direction: column;
             align-items: center;
             padding: 20px;
+            overflow-x: hidden;
         }
         h1 {
             color: white;
             margin-bottom: 10px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 2em;
         }
         .info {
             color: white;
@@ -31,12 +34,26 @@
             display: flex;
             align-items: center;
             gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         .info span {
             font-weight: bold;
         }
         .black-text { color: #1a1a1a; }
         .white-text { color: #f0f0f0; text-shadow: 1px 1px 1px #333; }
+        
+        .stats {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            font-size: 14px;
+        }
+        .stat-item {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 12px;
+            border-radius: 15px;
+        }
         
         .difficulty-select {
             display: flex;
@@ -59,28 +76,52 @@
             background: rgba(255,255,255,1);
         }
         
+        .board-wrapper {
+            position: relative;
+            overflow: hidden;
+            touch-action: none;
+            max-width: 100vw;
+        }
         .board-container {
             background: #DEB887;
             padding: 15px;
             border-radius: 5px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            transition: transform 0.1s;
+            cursor: grab;
+        }
+        .board-container:active {
+            cursor: grabbing;
+        }
+        .board-container.zoomed {
+            transform-origin: center center;
         }
         #board {
             display: grid;
-            grid-template-columns: repeat(15, 32px);
-            grid-template-rows: repeat(15, 32px);
+            grid-template-columns: repeat(15, 36px);
+            grid-template-rows: repeat(15, 36px);
             gap: 0;
             background: #DEB887;
+            position: relative;
         }
         .cell {
-            width: 32px;
-            height: 32px;
+            width: 36px;
+            height: 36px;
             border: 1px solid #8B7355;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             position: relative;
+        }
+        /* 增加点击范围 */
+        .cell::before {
+            content: '';
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            right: -8px;
+            bottom: -8px;
         }
         .cell:hover:not(.occupied) {
             background: rgba(255, 255, 255, 0.3);
@@ -89,10 +130,11 @@
             cursor: not-allowed;
         }
         .piece {
-            width: 26px;
-            height: 26px;
+            width: 30px;
+            height: 30px;
             border-radius: 50%;
             box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
         }
         .piece.black {
             background: radial-gradient(circle at 30% 30%, #555, #000);
@@ -102,11 +144,19 @@
         }
         .piece.last {
             box-shadow: 0 0 0 3px #4CAF50, 2px 2px 4px rgba(0,0,0,0.3);
+            animation: pieceAppear 0.3s ease-out;
+        }
+        @keyframes pieceAppear {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
         }
         .controls {
             margin-top: 20px;
             display: flex;
             gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         button {
             padding: 12px 30px;
@@ -116,10 +166,16 @@
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            transition: background 0.3s;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         button:hover {
             background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        button:active {
+            transform: translateY(0);
         }
         button.difficulty-btn {
             background: #2196F3;
@@ -133,17 +189,82 @@
             color: #FFD700;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             min-height: 30px;
+            text-align: center;
         }
         .game-over {
             animation: pulse 1s infinite;
         }
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.7; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
         }
         .thinking {
             color: #90CAF9 !important;
             font-size: 14px;
+        }
+        .sound-toggle {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            transition: all 0.3s;
+        }
+        .sound-toggle:hover {
+            background: rgba(255,255,255,0.3);
+            transform: scale(1.1);
+        }
+        
+        /* 移动端适配 */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.5em; }
+            .info { font-size: 14px; gap: 10px; }
+            #board {
+                grid-template-columns: repeat(15, 24px);
+                grid-template-rows: repeat(15, 24px);
+            }
+            .cell {
+                width: 24px;
+                height: 24px;
+            }
+            .cell::before {
+                top: -12px;
+                left: -12px;
+                right: -12px;
+                bottom: -12px;
+            }
+            .piece {
+                width: 20px;
+                height: 20px;
+            }
+            .board-container {
+                padding: 10px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            body { padding: 10px; }
+            h1 { font-size: 1.2em; }
+            #board {
+                grid-template-columns: repeat(15, 18px);
+                grid-template-rows: repeat(15, 18px);
+            }
+            .cell {
+                width: 18px;
+                height: 18px;
+            }
+            .cell::before {
+                top: -16px;
+                left: -16px;
+                right: -16px;
+                bottom: -16px;
+            }
+            .piece {
+                width: 14px;
+                height: 14px;
+            }
         }
     </style>
 </head>
@@ -151,6 +272,10 @@
     <h1>五子棋 - AI对战</h1>
     <div class="info">
         <span>当前: <span id="currentPlayer" class="black-text">●</span></span>
+        <div class="stats">
+            <span class="stat-item">步数: <span id="moveCount">0</span></span>
+            <span class="stat-item">AI思考: <span id="thinkTime">-</span></span>
+        </div>
         <div class="difficulty-select">
             <label>难度:</label>
             <select id="difficulty">
@@ -159,10 +284,13 @@
                 <option value="3" selected>困难</option>
             </select>
             <button class="difficulty-btn" onclick="applyDifficulty()">应用难度</button>
+            <button class="sound-toggle" onclick="toggleSound()" title="音效开关">🔊</button>
         </div>
     </div>
-    <div class="board-container">
-        <div id="board"></div>
+    <div class="board-wrapper">
+        <div class="board-container" id="boardContainer">
+            <div id="board"></div>
+        </div>
     </div>
     <div id="message"></div>
     <div class="controls">
@@ -177,6 +305,96 @@
         let gameOver = false;
         let lastMove = null;
         let isThinking = false;
+        let moveCountNum = 0; // 步数
+        let aiThinkStartTime = 0; // AI思考开始时间
+        let soundEnabled = true; // 音效开关
+        let audioContext = null; // 音频上下文
+
+        // 初始化音频
+        function initAudio() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.log('浏览器不支持音频API');
+                }
+            }
+        }
+
+        // 播放落子音效
+        function playMoveSound() {
+            if (!soundEnabled || !audioContext) return;
+            
+            try {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.error('播放音效失败:', e);
+            }
+        }
+
+        // 播放胜利音效
+        function playWinSound() {
+            if (!soundEnabled || !audioContext) return;
+            
+            try {
+                const notes = [523, 659, 784, 1047]; // C5, E5, G5, C6
+                notes.forEach((freq, i) => {
+                    const oscillator = audioContext.createOscillator();
+                    const gainNode = audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioContext.destination);
+                    
+                    oscillator.frequency.setValueAtTime(freq, audioContext.currentTime + i * 0.15);
+                    
+                    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime + i * 0.15);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + i * 0.15 + 0.3);
+                    
+                    oscillator.start(audioContext.currentTime + i * 0.15);
+                    oscillator.stop(audioContext.currentTime + i * 0.15 + 0.3);
+                });
+            } catch (e) {
+                console.error('播放胜利音效失败:', e);
+            }
+        }
+
+        // 切换音效
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.querySelector('.sound-toggle');
+            btn.textContent = soundEnabled ? '🔊' : '🔇';
+            if (soundEnabled) {
+                initAudio();
+            }
+        }
+
+        // 更新步数显示
+        function updateMoveCount(count) {
+            moveCountNum = count;
+            document.getElementById('moveCount').textContent = count;
+        }
+
+        // 更新AI思考时间
+        function updateThinkTime(ms) {
+            if (ms !== null && ms !== undefined) {
+                document.getElementById('thinkTime').textContent = (ms / 1000).toFixed(1) + '秒';
+            } else {
+                document.getElementById('thinkTime').textContent = '-';
+            }
+        }
 
         // 初始化棋盘
         function initBoard() {
@@ -193,11 +411,81 @@
                     boardEl.appendChild(cell);
                 }
             }
+            
+            // 重置所有显示状态
+            document.getElementById('moveCount').textContent = '0';
+            document.getElementById('thinkTime').textContent = '-';
+            document.getElementById('currentPlayer').textContent = '● (你)';
+            document.getElementById('currentPlayer').className = 'black-text';
+            document.getElementById('message').textContent = '';
+            document.getElementById('message').className = '';
+            
+            // 添加移动端手势支持（只在触摸设备上）
+            if ('ontouchstart' in window) {
+                initGestures();
+            }
         }
 
         // 获取难度
         function getDifficulty() {
             return parseInt(document.getElementById('difficulty').value);
+        }
+
+        // 移动端手势支持（缩放和平移）
+        let gesturesInitialized = false; // 防止重复初始化
+        
+        function initGestures() {
+            // 只初始化一次
+            if (gesturesInitialized) return;
+            gesturesInitialized = true;
+            
+            const container = document.getElementById('boardContainer');
+            if (!container) return;
+            
+            let scale = 1;
+            let isDragging = false;
+            let startX, startY, translateX = 0, translateY = 0;
+            let lastTap = 0;
+            
+            // 双击缩放
+            container.addEventListener('touchend', function(e) {
+                const currentTime = new Date().getTime();
+                const tapLength = currentTime - lastTap;
+                if (tapLength < 300 && tapLength > 0) {
+                    e.preventDefault();
+                    if (scale === 1) {
+                        scale = 1.5;
+                    } else {
+                        scale = 1;
+                        translateX = 0;
+                        translateY = 0;
+                    }
+                    container.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                }
+                lastTap = currentTime;
+            }, { passive: false });
+            
+            // 触摸移动（仅在放大状态下）
+            container.addEventListener('touchstart', function(e) {
+                if (scale > 1 && e.touches.length === 1) {
+                    isDragging = true;
+                    startX = e.touches[0].clientX - translateX;
+                    startY = e.touches[0].clientY - translateY;
+                }
+            }, { passive: true });
+            
+            container.addEventListener('touchmove', function(e) {
+                if (isDragging && e.touches.length === 1) {
+                    e.preventDefault();
+                    translateX = e.touches[0].clientX - startX;
+                    translateY = e.touches[0].clientY - startY;
+                    container.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                }
+            }, { passive: false });
+            
+            container.addEventListener('touchend', function() {
+                isDragging = false;
+            }, { passive: true });
         }
 
         // 应用难度
@@ -221,30 +509,62 @@
         // 初始化游戏
         async function initGame() {
             try {
+                console.log('开始初始化游戏...');
+                initAudio(); // 初始化音频
+                
+                // 先初始化棋盘DOM
+                initBoard();
+                console.log('棋盘DOM已初始化');
+                
+                // 创建空棋盘数据
+                board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+                
+                // 调用API创建新游戏
                 const difficulty = getDifficulty();
                 const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}`);
                 const data = await response.json();
+                
+                console.log('新游戏响应:', data);
+                
+                // 更新所有状态
                 sessionId = data.sessionId;
                 board = data.board;
                 currentPlayer = data.currentPlayer;
                 gameOver = data.gameOver;
+                updateMoveCount(data.moveCount || 0);
+                updateThinkTime(null);
+                
+                // 渲染棋盘
                 renderBoard();
                 updateCurrentPlayer();
                 document.getElementById('message').textContent = '';
                 document.getElementById('message').className = '';
+                
+                console.log('游戏初始化完成');
             } catch (error) {
                 console.error('初始化游戏失败:', error);
+                // 即使出错也要确保棋盘显示
                 initBoard();
+                board = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+                renderBoard();
             }
         }
 
         // 渲染棋盘
         function renderBoard() {
-            const cells = document.getElementById('board').children;
+            const boardEl = document.getElementById('board');
+            if (!boardEl || !boardEl.children || boardEl.children.length === 0) {
+                console.warn('棋盘尚未初始化，跳过渲染');
+                return;
+            }
+            
+            const cells = boardEl.children;
             for (let i = 0; i < BOARD_SIZE; i++) {
                 for (let j = 0; j < BOARD_SIZE; j++) {
                     const cellIndex = i * BOARD_SIZE + j;
                     const cell = cells[cellIndex];
+                    if (!cell) continue;
+                    
                     cell.innerHTML = '';
                     cell.className = 'cell';
                     
@@ -269,8 +589,12 @@
 
             try {
                 isThinking = true;
+                aiThinkStartTime = Date.now(); // 记录AI思考开始时间
                 document.getElementById('message').textContent = 'AI思考中...';
                 document.getElementById('message').className = 'thinking';
+                
+                // 播放落子音效
+                playMoveSound();
 
                 const response = await fetch(`/api/gomoku/move/${sessionId}?row=${row}&col=${col}`, {
                     method: 'POST'
@@ -282,6 +606,7 @@
                     board = data.board;
                     gameOver = data.gameOver;
                     currentPlayer = data.currentPlayer;
+                    updateMoveCount(data.moveCount || 0);
                     
                     renderBoard();
                     
@@ -298,6 +623,7 @@
                             // gameOver 已经在 pollAiMove 中更新，消息也已设置
                         } else {
                             updateCurrentPlayer();
+                            updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = '';
                             document.getElementById('message').className = '';
                         }
@@ -307,20 +633,26 @@
                         // 检查AI落子后游戏是否结束
                         if (data.gameOver && data.winnerText) {
                             gameOver = data.gameOver;
+                            updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = data.winnerText;
                             document.getElementById('message').className = 'game-over';
+                            playWinSound(); // 播放胜利音效
                         } else {
                             updateCurrentPlayer();
+                            updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = '';
                             document.getElementById('message').className = '';
                         }
                     } else {
                         // 玩家落子后获胜的情况
                         if (gameOver && data.winnerText) {
+                            updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = data.winnerText;
                             document.getElementById('message').className = 'game-over';
+                            playWinSound(); // 播放胜利音效
                         } else {
                             updateCurrentPlayer();
+                            updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = '';
                             document.getElementById('message').className = '';
                         }
@@ -446,24 +778,43 @@
             
             try {
                 console.log('开始重置游戏...');
-                // 直接创建新游戏，确保状态完全干净
+                
+                // 先重新初始化棋盘DOM（清空所有格子）
+                initBoard();
+                console.log('棋盘DOM已重置');
+                
+                // 直接创建新游戏，确保状态完全干净，添加时间戳避免缓存
                 const difficulty = getDifficulty();
-                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}`);
+                const timestamp = Date.now();
+                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}&_t=${timestamp}`);
                 const data = await response.json();
                 
                 console.log('新游戏响应:', data);
 
+                // 完整更新所有状态
                 sessionId = data.sessionId;
                 board = data.board;
                 currentPlayer = data.currentPlayer;
                 gameOver = data.gameOver;
+                
+                // 更新统计数据
+                updateMoveCount(data.moveCount || 0);
+                updateThinkTime(null);
 
                 document.getElementById('message').textContent = '';
                 document.getElementById('message').className = '';
 
+                // 重新渲染棋盘和状态
                 renderBoard();
                 updateCurrentPlayer();
+                
                 console.log('游戏重置完成 - 棋盘:', board, '当前玩家:', currentPlayer, '游戏结束:', gameOver);
+                console.log('页面显示 - 当前玩家:', document.getElementById('currentPlayer').textContent, '步数:', document.getElementById('moveCount').textContent);
+                
+                // 检查是否需要等待AI落子（理论上不应该，因为新游戏应该从玩家开始）
+                if (currentPlayer === 2 && !gameOver) {
+                    console.warn('警告：新游戏AI回合，这不应该发生');
+                }
             } catch (error) {
                 console.error('重置游戏失败:', error);
                 initGame();
@@ -472,7 +823,7 @@
 
         // 页面加载时初始化
         // 添加版本号强制刷新缓存
-        console.log('五子棋游戏初始化 - 版本 20260404-v2');
+        console.log('五子棋游戏初始化 - 版本 20260404-v9 (修复显示状态问题)');
         initGame();
     </script>
 </body>

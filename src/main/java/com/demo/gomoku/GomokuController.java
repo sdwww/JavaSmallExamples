@@ -1,37 +1,44 @@
 package com.demo.gomoku;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.*;
 
 /**
- * 五子棋游戏控制器（支持AI对战）
+ * 五子棋游戏控制器（优化版）
+ * 优化点：
+ * 1. 使用 GameService 管理游戏状态，线程安全
+ * 2. 使用 Difficulty 枚举替代魔法数字
+ * 3. 简化代码逻辑
  */
 @RestController
 @RequestMapping("/api/gomoku")
 @CrossOrigin(origins = "*")
 public class GomokuController {
 
-    private static final Map<String, GomokuGame> games = new HashMap<>();
+    @Autowired
+    private GameService gameService;
 
     /**
      * 创建新游戏
      */
     @GetMapping("/new")
-    public Map<String, Object> newGame(@RequestParam(required = false) String sessionId,
-                                        @RequestParam(defaultValue = "1") int difficulty) {
-        if (sessionId == null || sessionId.isEmpty()) {
-            sessionId = UUID.randomUUID().toString();
-        }
-        games.put(sessionId, new GomokuGame(difficulty));
-        return getGameState(sessionId);
+    public Map<String, Object> newGame(@RequestParam(defaultValue = "2") int difficulty) {
+        Difficulty diff = Difficulty.fromLevel(difficulty);
+        String sessionId = java.util.UUID.randomUUID().toString();
+        GomokuGame game = gameService.getOrCreateGame(sessionId, diff); // 创建并注册游戏
+        return buildState(game, sessionId);
     }
 
     /**
      * 获取游戏状态
      */
     @GetMapping("/state/{sessionId}")
-    public Map<String, Object> getGameState(@PathVariable String sessionId) {
-        GomokuGame game = games.computeIfAbsent(sessionId, k -> new GomokuGame());
+    public Map<String, Object> getGameState(@PathVariable String sessionId,
+                                            @RequestParam(defaultValue = "2") int difficulty) {
+        Difficulty diff = Difficulty.fromLevel(difficulty);
+        GomokuGame game = gameService.getOrCreateGame(sessionId, diff);
         return buildState(game, sessionId);
     }
 
@@ -39,8 +46,12 @@ public class GomokuController {
      * 玩家落子（自动触发AI）
      */
     @PostMapping("/move/{sessionId}")
-    public Map<String, Object> move(@PathVariable String sessionId, @RequestParam int row, @RequestParam int col) {
-        GomokuGame game = games.computeIfAbsent(sessionId, k -> new GomokuGame());
+    public Map<String, Object> move(@PathVariable String sessionId,
+                                    @RequestParam int row,
+                                    @RequestParam int col,
+                                    @RequestParam(defaultValue = "2") int difficulty) {
+        Difficulty diff = Difficulty.fromLevel(difficulty);
+        GomokuGame game = gameService.getOrCreateGame(sessionId, diff);
 
         Map<String, Object> result = new HashMap<>();
         
@@ -82,16 +93,12 @@ public class GomokuController {
      * 重置游戏
      */
     @PostMapping("/reset/{sessionId}")
-    public Map<String, Object> reset(@RequestParam String sessionId,
-                                     @RequestParam(defaultValue = "1") int difficulty) {
-        GomokuGame game = games.get(sessionId);
-        if (game != null) {
-            game.reset(difficulty);
-        } else {
-            game = new GomokuGame(difficulty);
-            games.put(sessionId, game);
-        }
-        return getGameState(sessionId);
+    public Map<String, Object> reset(@PathVariable String sessionId,
+                                     @RequestParam(defaultValue = "2") int difficulty) {
+        Difficulty diff = Difficulty.fromLevel(difficulty);
+        gameService.resetGame(sessionId, diff);
+        GomokuGame game = gameService.getGame(sessionId);
+        return buildState(game, sessionId);
     }
 
     /**
@@ -100,11 +107,10 @@ public class GomokuController {
     @PostMapping("/difficulty/{sessionId}")
     public Map<String, Object> setDifficulty(@PathVariable String sessionId,
                                              @RequestParam int difficulty) {
-        GomokuGame game = games.get(sessionId);
-        if (game != null) {
-            game.setDifficulty(difficulty);
-        }
-        return getGameState(sessionId);
+        Difficulty diff = Difficulty.fromLevel(difficulty);
+        gameService.setDifficulty(sessionId, diff);
+        GomokuGame game = gameService.getGame(sessionId);
+        return buildState(game, sessionId);
     }
 
     /**
@@ -119,7 +125,7 @@ public class GomokuController {
         state.put("gameOver", game.isGameOver());
         state.put("winner", game.getWinner());
         state.put("moveCount", game.getMoveCount());
-        state.put("difficulty", game.getDifficulty());
+        state.put("difficulty", game.getDifficulty().getLevel());
 
         if (game.isGameOver()) {
             if (game.getWinner() == GomokuGame.BLACK) {

@@ -62,7 +62,7 @@ public class GomokuController {
             return result;
         }
 
-        if (game.getCurrentPlayer() != GomokuGame.BLACK) {
+        if (game.getCurrentPlayer() != GomokuBoard.BLACK) {
             result.putAll(buildState(game, sessionId));
             result.put("success", false);
             result.put("error", "等待AI落子");
@@ -108,7 +108,7 @@ public class GomokuController {
         }
         
         // 如果当前是AI，且还没有落子
-        if (game.getCurrentPlayer() == GomokuGame.WHITE) {
+        if (game.getCurrentPlayer() == GomokuBoard.WHITE) {
             int[] aiMove = game.aiMove();
             result.put("aiMove", aiMove);
         }
@@ -149,16 +149,16 @@ public class GomokuController {
         state.put("sessionId", sessionId);
         state.put("board", game.getBoard());
         state.put("currentPlayer", game.getCurrentPlayer());
-        state.put("currentPlayerText", game.getCurrentPlayer() == GomokuGame.BLACK ? "黑方(你)" : "白方(AI)");
+        state.put("currentPlayerText", game.getCurrentPlayer() == GomokuBoard.BLACK ? "黑方(你)" : "白方(AI)");
         state.put("gameOver", game.isGameOver());
         state.put("winner", game.getWinner());
         state.put("moveCount", game.getMoveCount());
         state.put("difficulty", game.getDifficulty().getLevel());
 
         if (game.isGameOver()) {
-            if (game.getWinner() == GomokuGame.BLACK) {
+            if (game.getWinner() == GomokuBoard.BLACK) {
                 state.put("winnerText", "你赢了!");
-            } else if (game.getWinner() == GomokuGame.WHITE) {
+            } else if (game.getWinner() == GomokuBoard.WHITE) {
                 state.put("winnerText", "AI获胜");
             } else {
                 state.put("winnerText", "平局");

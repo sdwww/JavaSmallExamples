@@ -2,7 +2,7 @@ package com.demo.gomoku;
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
+
 
 /**
  * 五子棋AI引擎 - 包含所有搜索算法
@@ -21,13 +21,13 @@ public class GomokuAI {
         return t;
     });
     
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(parallelExecutor::shutdown));
+    }
+    
     private final PatternEvaluator evaluator;
     private final ThreatDetector threatDetector;
     private Difficulty difficulty;
-    
-    // 杀手启发（优化搜索顺序）
-    private int[] killerMoveA = null;
-    private int[] killerMoveB = null;
     
     // 并行搜索结果容器
     private volatile int[] parallelBestMove = null;
@@ -64,12 +64,6 @@ public class GomokuAI {
         
         if (candidates.isEmpty()) {
             return new int[]{GomokuBoard.BOARD_SIZE / 2, GomokuBoard.BOARD_SIZE / 2};
-        }
-        
-        // 如果中间已被占用，选择附近位置
-        int center = GomokuBoard.BOARD_SIZE / 2;
-        if (board[center][center] != GomokuBoard.EMPTY) {
-            return candidates.get(0);
         }
         
         // 【所有难度都必须检查】必胜/必防/关键威胁

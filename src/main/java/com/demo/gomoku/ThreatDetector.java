@@ -203,91 +203,6 @@ public class ThreatDetector {
     }
     
     /**
-     * 扫描棋盘查找关键威胁（4 连或活 3）
-     * 直接分析现有棋子，而不是模拟落子
-     */
-    public int[] findCriticalThreat(int[][] board, int player) {
-        for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
-            for (int j = 0; j < GomokuBoard.BOARD_SIZE; j++) {
-                if (board[i][j] != player) continue;
-                
-                for (int[] dir : GomokuBoard.DIRECTIONS) {
-                    int countForward = 0;
-                    int r = i + dir[0], c = j + dir[1];
-                    while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
-                        countForward++;
-                        r += dir[0];
-                        c += dir[1];
-                    }
-                    
-                    int countBackward = 0;
-                    r = i - dir[0];
-                    c = j - dir[1];
-                    while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
-                        countBackward++;
-                        r -= dir[0];
-                        c -= dir[1];
-                    }
-                    
-                    int totalCount = 1 + countForward + countBackward;
-                    
-                    // 如果有 4 个或更多连续棋子
-                    if (totalCount >= 4) {
-                        int frontR = i + countForward * dir[0];
-                        int frontC = j + countForward * dir[1];
-                        int backR = i - countBackward * dir[0];
-                        int backC = j - countBackward * dir[1];
-                        
-                        int nextFrontR = frontR + dir[0];
-                        int nextFrontC = frontC + dir[1];
-                        if (nextFrontR >= 0 && nextFrontR < GomokuBoard.BOARD_SIZE && nextFrontC >= 0 && nextFrontC < GomokuBoard.BOARD_SIZE 
-                            && board[nextFrontR][nextFrontC] == GomokuBoard.EMPTY) {
-                            return new int[]{nextFrontR, nextFrontC};
-                        }
-                        
-                        int nextBackR = backR - dir[0];
-                        int nextBackC = backC - dir[1];
-                        if (nextBackR >= 0 && nextBackR < GomokuBoard.BOARD_SIZE && nextBackC >= 0 && nextBackC < GomokuBoard.BOARD_SIZE 
-                            && board[nextBackR][nextBackC] == GomokuBoard.EMPTY) {
-                            return new int[]{nextBackR, nextBackC};
-                        }
-                    }
-                    
-                    // 如果有 3 个连续棋子，检查是否是活三
-                    if (totalCount == 3) {
-                        int frontR = i + countForward * dir[0];
-                        int frontC = j + countForward * dir[1];
-                        int backR = i - countBackward * dir[0];
-                        int backC = j - countBackward * dir[1];
-                        
-                        int nextFrontR = frontR + dir[0];
-                        int nextFrontC = frontC + dir[1];
-                        int nextBackR = backR - dir[0];
-                        int nextBackC = backC - dir[1];
-                        
-                        boolean frontEmpty = nextFrontR >= 0 && nextFrontR < GomokuBoard.BOARD_SIZE && nextFrontC >= 0 && nextFrontC < GomokuBoard.BOARD_SIZE 
-                                          && board[nextFrontR][nextFrontC] == GomokuBoard.EMPTY;
-                        boolean backEmpty = nextBackR >= 0 && nextBackR < GomokuBoard.BOARD_SIZE && nextBackC >= 0 && nextBackC < GomokuBoard.BOARD_SIZE 
-                                         && board[nextBackR][nextBackC] == GomokuBoard.EMPTY;
-                        
-                        if (frontEmpty && backEmpty) {
-                            int center = GomokuBoard.BOARD_SIZE / 2;
-                            int frontDist = Math.abs(nextFrontR - center) + Math.abs(nextFrontC - center);
-                            int backDist = Math.abs(nextBackR - center) + Math.abs(nextBackC - center);
-                            return frontDist < backDist ? new int[]{nextFrontR, nextFrontC} : new int[]{nextBackR, nextBackC};
-                        }
-                        
-                        if (frontEmpty) return new int[]{nextFrontR, nextFrontC};
-                        if (backEmpty) return new int[]{nextBackR, nextBackC};
-                    }
-                }
-            }
-        }
-        
-        return null;
-    }
-    
-    /**
      * 获取候选落子位置
      * @param searchRange 搜索范围
      * @param sortByScore 是否按评分排序
@@ -335,7 +250,7 @@ public class ThreatDetector {
         
         // 按评分排序
         if (sortByScore) {
-            PatternEvaluator eval = new PatternEvaluator();
+            PatternEvaluator eval = this.evaluator;
             int center = GomokuBoard.BOARD_SIZE / 2;
             result.sort((a, b) -> {
                 int scoreA = eval.quickEvaluate(board, a[0], a[1]);

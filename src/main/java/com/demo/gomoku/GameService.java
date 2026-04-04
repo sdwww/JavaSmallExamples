@@ -77,7 +77,7 @@ public class GameService {
             game.reset(difficulty);
             updateActiveTime(sessionId);
         } else {
-            createGame(difficulty);
+            createGame(sessionId, difficulty);
         }
     }
     

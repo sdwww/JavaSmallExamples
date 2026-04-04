@@ -77,15 +77,43 @@ public class GomokuController {
             result.put("error", "无效的落子位置");
         }
 
-        // AI落子
-        int[] aiMove = null;
+        // AI落子 - 异步执行，玩家落子后立即返回
         if (playerSuccess && !game.isGameOver()) {
-            aiMove = game.aiMove();
+            // 不在这里同步等待AI，让前端轮询获取AI落子
+            result.put("aiMove", null);
+            result.put("aiNeedPoll", true); // 标记需要前端轮询
         }
-
-        result.put("aiMove", aiMove);
         result.putAll(buildState(game, sessionId));
 
+        return result;
+    }
+
+    /**
+     * AI异步落子（前端轮询获取）
+     */
+    @GetMapping("/ai-move/{sessionId}")
+    public Map<String, Object> aiMove(@PathVariable String sessionId) {
+        GomokuGame game = gameService.getGame(sessionId);
+        
+        Map<String, Object> result = new HashMap<>();
+        
+        if (game == null) {
+            result.put("error", "游戏不存在");
+            return result;
+        }
+        
+        if (game.isGameOver()) {
+            result.putAll(buildState(game, sessionId));
+            return result;
+        }
+        
+        // 如果当前是AI，且还没有落子
+        if (game.getCurrentPlayer() == GomokuGame.WHITE) {
+            int[] aiMove = game.aiMove();
+            result.put("aiMove", aiMove);
+        }
+        
+        result.putAll(buildState(game, sessionId));
         return result;
     }
 

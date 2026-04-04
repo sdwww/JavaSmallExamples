@@ -139,12 +139,12 @@ public class GomokuGame {
             return new int[]{center, center};
         }
         
+        // 【所有难度都必须检查】必胜/必防/关键威胁
+        int[] winMove = findImmediateWinOrBlock();
+        if (winMove != null) return winMove;
+        
         // 困难模式：使用极大极小 + Alpha-Beta剪枝 + 迭代加深
         if (difficulty == Difficulty.HARD) {
-            // 1. 先检查是否有必胜/必防的一步
-            int[] winMove = findImmediateWinOrBlock();
-            if (winMove != null) return winMove;
-            
             return calculateHardMove(candidates, startTime);
         }
         
@@ -154,12 +154,14 @@ public class GomokuGame {
     
     /**
      * 检查是否有必胜或必防的棋步（优化棋力）
+     * 注意：此处不受搜索范围限制，全盘扫描相邻空位
      */
     private int[] findImmediateWinOrBlock() {
-        List<int[]> candidates = getCandidateMoves(difficulty.getSearchRange(), false, 0);
+        // 获取所有相关的空位（扩大扫描范围至全盘 2 格内）
+        List<int[]> allCandidates = getCandidateMoves(2, false, 0);
         
         // 1. 检查 AI 是否能一步获胜
-        for (int[] move : candidates) {
+        for (int[] move : allCandidates) {
             board[move[0]][move[1]] = WHITE;
             if (checkWin(move[0], move[1])) {
                 board[move[0]][move[1]] = EMPTY;
@@ -169,7 +171,7 @@ public class GomokuGame {
         }
         
         // 2. 检查玩家是否能一步获胜，必须拦截
-        for (int[] move : candidates) {
+        for (int[] move : allCandidates) {
             board[move[0]][move[1]] = BLACK;
             if (checkWin(move[0], move[1])) {
                 board[move[0]][move[1]] = EMPTY;
@@ -178,7 +180,144 @@ public class GomokuGame {
             board[move[0]][move[1]] = EMPTY;
         }
         
+        // 3. 【关键修复】直接扫描棋盘，检查玩家是否已有 4 连或活 3
+        int[] urgentBlock = findCriticalThreat(BLACK);
+        if (urgentBlock != null) return urgentBlock;
+        
+        // 4. 检查 AI 自己是否有 4 连进攻机会
+        int[] aiAttack = findCriticalThreat(WHITE);
+        if (aiAttack != null) return aiAttack;
+        
         return null;
+    }
+    
+    /**
+     * 扫描棋盘查找关键威胁（4 连或活 3）
+     * 直接分析现有棋子，而不是模拟落子
+     */
+    private int[] findCriticalThreat(int player) {
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            for (int j = 0; j < BOARD_SIZE; j++) {
+                if (board[i][j] != player) continue;
+                
+                // 对每个棋子，检查四个方向的完整连线
+                for (int[] dir : DIRECTIONS) {
+                    // 向前数连续棋子数
+                    int countForward = 0;
+                    int r = i + dir[0], c = j + dir[1];
+                    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == player) {
+                        countForward++;
+                        r += dir[0];
+                        c += dir[1];
+                    }
+                    
+                    // 向后数连续棋子数
+                    int countBackward = 0;
+                    r = i - dir[0];
+                    c = j - dir[1];
+                    while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] == player) {
+                        countBackward++;
+                        r -= dir[0];
+                        c -= dir[1];
+                    }
+                    
+                    int totalCount = 1 + countForward + countBackward;
+                    
+                    // 如果有 4 个或更多连续棋子
+                    if (totalCount >= 4) {
+                        // 找到这组棋子的两端
+                        int frontR = i + countForward * dir[0];
+                        int frontC = j + countForward * dir[1];
+                        int backR = i - countBackward * dir[0];
+                        int backC = j - countBackward * dir[1];
+                        
+                        // 检查前端是否空
+                        int nextFrontR = frontR + dir[0];
+                        int nextFrontC = frontC + dir[1];
+                        if (nextFrontR >= 0 && nextFrontR < BOARD_SIZE && nextFrontC >= 0 && nextFrontC < BOARD_SIZE 
+                            && board[nextFrontR][nextFrontC] == EMPTY) {
+                            return new int[]{nextFrontR, nextFrontC};
+                        }
+                        
+                        // 检查后端是否空
+                        int nextBackR = backR - dir[0];
+                        int nextBackC = backC - dir[1];
+                        if (nextBackR >= 0 && nextBackR < BOARD_SIZE && nextBackC >= 0 && nextBackC < BOARD_SIZE 
+                            && board[nextBackR][nextBackC] == EMPTY) {
+                            return new int[]{nextBackR, nextBackC};
+                        }
+                    }
+                    
+                    // 如果有 3 个连续棋子，检查是否是活三
+                    if (totalCount == 3) {
+                        int frontR = i + countForward * dir[0];
+                        int frontC = j + countForward * dir[1];
+                        int backR = i - countBackward * dir[0];
+                        int backC = j - countBackward * dir[1];
+                        
+                        int nextFrontR = frontR + dir[0];
+                        int nextFrontC = frontC + dir[1];
+                        int nextBackR = backR - dir[0];
+                        int nextBackC = backC - dir[1];
+                        
+                        boolean frontEmpty = nextFrontR >= 0 && nextFrontR < BOARD_SIZE && nextFrontC >= 0 && nextFrontC < BOARD_SIZE 
+                                          && board[nextFrontR][nextFrontC] == EMPTY;
+                        boolean backEmpty = nextBackR >= 0 && nextBackR < BOARD_SIZE && nextBackC >= 0 && nextBackC < BOARD_SIZE 
+                                         && board[nextBackR][nextBackC] == EMPTY;
+                        
+                        // 活三：两端都空，必须拦截一端
+                        if (frontEmpty && backEmpty) {
+                            int center = BOARD_SIZE / 2;
+                            int frontDist = Math.abs(nextFrontR - center) + Math.abs(nextFrontC - center);
+                            int backDist = Math.abs(nextBackR - center) + Math.abs(nextBackC - center);
+                            return frontDist < backDist ? new int[]{nextFrontR, nextFrontC} : new int[]{nextBackR, nextBackC};
+                        }
+                        
+                        // 眠三：只有一端空
+                        if (frontEmpty) return new int[]{nextFrontR, nextFrontC};
+                        if (backEmpty) return new int[]{nextBackR, nextBackC};
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 查找特定威胁棋步
+     * @param player 检查的玩家
+     * @param targetCount 目标连子数（4=活四/冲四，3=活三）
+     * @param mustBlock 是否必须拦截（活四必须拦，冲四尽量拦）
+     */
+    private int[] findThreatMove(int player, int targetCount, boolean mustBlock) {
+        List<int[]> allCandidates = getCandidateMoves(2, false, 0);
+        
+        for (int[] move : allCandidates) {
+            board[move[0]][move[1]] = player;
+            
+            // 检查落子后是否形成目标棋型
+            if (hasPattern(move[0], move[1], player, targetCount)) {
+                board[move[0]][move[1]] = EMPTY;
+                return move;
+            }
+            board[move[0]][move[1]] = EMPTY;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 检查某个位置是否形成了指定数量的连子（任意方向）
+     */
+    private boolean hasPattern(int row, int col, int player, int count) {
+        for (int[] dir : DIRECTIONS) {
+            int c = 1;
+            c += countInDirection(row, col, player, dir[0], dir[1]);
+            c += countInDirection(row, col, player, -dir[0], -dir[1]);
+            if (c >= count) return true;
+        }
+        return false;
     }
 
     /**
@@ -289,11 +428,11 @@ public class GomokuGame {
      * 评估整个棋盘
      */
     private int evaluateBoard() {
-        // 使用 Zobrist Hash 作为缓存键（简化版）
-        long boardHash = calculateBoardHash();
-        if (evaluationCache.containsKey(boardHash)) {
-            return evaluationCache.get(boardHash);
-        }
+        // 暂时禁用缓存以确保极高准确率
+        // long boardHash = calculateBoardHash();
+        // if (evaluationCache.containsKey(boardHash)) {
+        //     return evaluationCache.get(boardHash);
+        // }
         
         int score = 0;
         int center = BOARD_SIZE / 2;
@@ -317,7 +456,7 @@ public class GomokuGame {
             }
         }
         
-        evaluationCache.put(boardHash, score);
+        // evaluationCache.put(boardHash, score);
         return score;
     }
     
@@ -462,7 +601,15 @@ public class GomokuGame {
             double defenseWeight = difficulty.getDefenseWeight();
             // 困难模式下大幅提高防守权重
             if (difficulty == Difficulty.HARD) defenseWeight = 1.8;
+            // 简单/中等模式也提高防守权重以增强难度
+            if (difficulty == Difficulty.EASY) defenseWeight = 1.5;
+            if (difficulty == Difficulty.MEDIUM) defenseWeight = 1.7;
+            
             int totalScore = attackScore + (int)(defenseScore * defenseWeight);
+            
+            // 【增强难度】对关键棋型额外加分：活三/冲四/活四
+            int criticalBonus = evaluateCriticalBonus(move[0], move[1], BLACK);
+            totalScore += criticalBonus;
             
             // 位置权重
             int dist = Math.abs(move[0] - center) + Math.abs(move[1] - center);
@@ -474,7 +621,8 @@ public class GomokuGame {
         
         // 收集高分候选（避免单一最优，增加随机性）
         List<int[]> bestMoves = new ArrayList<>();
-        double threshold = difficulty == Difficulty.EASY ? 0.6 : 0.85;
+        // 降低阈值让AI选得更保守
+        double threshold = difficulty == Difficulty.EASY ? 0.5 : 0.8;
         for (int[] move : candidates) {
             int score = scores.get(move[0] + "," + move[1]);
             if (score >= maxScore * threshold) {
@@ -484,6 +632,27 @@ public class GomokuGame {
         
         Random rand = new Random();
         return bestMoves.get(rand.nextInt(bestMoves.size()));
+    }
+    
+    /**
+     * 评估关键棋型奖励（增强防守）
+     */
+    private int evaluateCriticalBonus(int row, int col, int opponent) {
+        int bonus = 0;
+        for (int[] dir : DIRECTIONS) {
+            int[] pattern = analyzeLine(row, col, opponent, dir[0], dir[1]);
+            int lineScore = getLineScore(pattern);
+            
+            // 如果形成活四/冲四，巨额奖励
+            if (lineScore >= SCORE_FOUR) bonus += 500000;
+            // 如果形成活三，也要有较高奖励
+            else if (lineScore >= SCORE_LIVE_THREE) bonus += 100000;
+            // 如果形成眠三，也要奖励
+            else if (lineScore >= SCORE_SLEEP_THREE) bonus += 20000;
+            // 活二也有一定价值
+            else if (lineScore >= SCORE_LIVE_TWO) bonus += 5000;
+        }
+        return bonus;
     }
     
     private int evaluatePositionQuick(int row, int col, int player) {

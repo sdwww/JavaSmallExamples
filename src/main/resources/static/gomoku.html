@@ -290,8 +290,11 @@
                         highlightMove(data.playerMove[0], data.playerMove[1]);
                     }
                     
-                    // 高亮AI落子
-                    if (data.aiMove) {
+                    // 如果需要轮询获取AI落子
+                    if (data.aiNeedPoll) {
+                        await pollAiMove();
+                    } else if (data.aiMove) {
+                        // 兼容模式：直接获取AI落子
                         highlightMove(data.aiMove[0], data.aiMove[1]);
                     }
 
@@ -311,6 +314,48 @@
                 console.error('落子失败:', error);
             } finally {
                 isThinking = false;
+            }
+        }
+
+        // 轮询获取AI落子
+        async function pollAiMove() {
+            while (isThinking && !gameOver) {
+                try {
+                    const response = await fetch(`/api/gomoku/ai-move/${sessionId}`);
+                    const data = await response.json();
+
+                    board = data.board;
+                    currentPlayer = data.currentPlayer;
+                    gameOver = data.gameOver;
+
+                    renderBoard();
+
+                    // 高亮AI落子
+                    if (data.aiMove) {
+                        highlightMove(data.aiMove[0], data.aiMove[1]);
+                        if (gameOver) {
+                            document.getElementById('message').textContent = data.winnerText;
+                            document.getElementById('message').className = 'game-over';
+                        } else {
+                            updateCurrentPlayer();
+                            document.getElementById('message').textContent = '';
+                            document.getElementById('message').className = '';
+                        }
+                        break;
+                    }
+
+                    // 如果游戏结束
+                    if (gameOver) {
+                        document.getElementById('message').textContent = data.winnerText || '';
+                        document.getElementById('message').className = 'game-over';
+                        break;
+                    }
+                } catch (error) {
+                    console.error('获取AI落子失败:', error);
+                }
+
+                // 等待一段时间后重试
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
         }
 

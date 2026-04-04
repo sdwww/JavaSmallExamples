@@ -4,9 +4,9 @@ package com.demo.gomoku;
  * 五子棋难度枚举
  */
 public enum Difficulty {
-    EASY(1, "简单", 0.9, 3, 12),
-    MEDIUM(2, "中等", 1.1, 3, 15),
-    HARD(3, "困难", 1.5, 4, 18);
+    EASY(1, "简单", 1.5, 4, 20),
+    MEDIUM(2, "中等", 1.7, 5, 25),
+    HARD(3, "困难", 2.0, 6, 30);
 
     private final int level;
     private final String name;

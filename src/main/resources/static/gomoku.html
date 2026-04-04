@@ -776,12 +776,14 @@
                             document.getElementById('message').textContent = data.winnerText;
                             document.getElementById('message').className = 'game-over';
                             playWinSound(); // 播放胜利音效
+                            updateUndoButton(data.canUndo);
                         } else {
                             updateCurrentPlayer();
                             updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = '';
                             document.getElementById('message').className = '';
                         }
+                        isThinking = false;
                     } else {
                         // 玩家落子后获胜的情况
                         if (gameOver && data.winnerText) {
@@ -789,20 +791,22 @@
                             document.getElementById('message').textContent = data.winnerText;
                             document.getElementById('message').className = 'game-over';
                             playWinSound(); // 播放胜利音效
+                            updateUndoButton(data.canUndo);
                         } else {
                             updateCurrentPlayer();
                             updateMoveCount(data.moveCount || 0);
                             document.getElementById('message').textContent = '';
                             document.getElementById('message').className = '';
                         }
+                        isThinking = false;
                     }
                 } else if (data.error) {
                     document.getElementById('message').textContent = data.error;
                     document.getElementById('message').className = '';
+                    isThinking = false;
                 }
             } catch (error) {
                 console.error('落子失败:', error);
-            } finally {
                 isThinking = false;
             }
         }
@@ -968,7 +972,7 @@
 
         // 页面加载时初始化
         // 添加版本号强制刷新缓存
-        console.log('五子棋游戏初始化 - 版本 20260404-v10 (添加悔棋+坐标+棋谱)');
+        console.log('五子棋游戏初始化 - 版本 20260404-v11 (修复悔棋置灰逻辑)');
         
         // 悔棋功能
         async function undoMove() {
@@ -1004,7 +1008,10 @@
         // 更新悔棋按钮状态
         function updateUndoButton(canUndo) {
             const btn = document.getElementById('undoBtn');
-            if (btn) btn.disabled = !canUndo;
+            if (btn) {
+                // 游戏结束时禁用悔棋
+                btn.disabled = !canUndo || gameOver;
+            }
         }
         
         // 导出棋盘为图片

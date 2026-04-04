@@ -298,7 +298,8 @@
                         highlightMove(data.aiMove[0], data.aiMove[1]);
                     }
 
-                    if (gameOver) {
+                    // 检查游戏是否结束（玩家落子后可能获胜）
+                    if (gameOver && data.winnerText) {
                         document.getElementById('message').textContent = data.winnerText;
                         document.getElementById('message').className = 'game-over';
                     } else {
@@ -319,7 +320,7 @@
 
         // 轮询获取AI落子
         async function pollAiMove() {
-            while (isThinking && !gameOver) {
+            while (isThinking) {
                 try {
                     const response = await fetch(`/api/gomoku/ai-move/${sessionId}`);
                     const data = await response.json();
@@ -333,21 +334,22 @@
                     // 高亮AI落子
                     if (data.aiMove) {
                         highlightMove(data.aiMove[0], data.aiMove[1]);
-                        if (gameOver) {
-                            document.getElementById('message').textContent = data.winnerText;
-                            document.getElementById('message').className = 'game-over';
-                        } else {
-                            updateCurrentPlayer();
-                            document.getElementById('message').textContent = '';
-                            document.getElementById('message').className = '';
-                        }
+                    }
+                    
+                    // 检查游戏是否结束（优先显示胜利提示）
+                    if (gameOver) {
+                        document.getElementById('message').textContent = data.winnerText || '游戏结束';
+                        document.getElementById('message').className = 'game-over';
+                        isThinking = false;
                         break;
                     }
-
-                    // 如果游戏结束
-                    if (gameOver) {
-                        document.getElementById('message').textContent = data.winnerText || '';
-                        document.getElementById('message').className = 'game-over';
+                    
+                    // 如果AI已经落子且游戏未结束，更新状态并退出轮询
+                    if (data.aiMove) {
+                        updateCurrentPlayer();
+                        document.getElementById('message').textContent = '';
+                        document.getElementById('message').className = '';
+                        isThinking = false;
                         break;
                     }
                 } catch (error) {

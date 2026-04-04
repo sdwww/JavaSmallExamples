@@ -102,16 +102,13 @@ public class GomokuController {
             return result;
         }
         
-        if (game.isGameOver()) {
-            result.putAll(buildState(game, sessionId));
-            return result;
-        }
-        
+        // 先让AI落子，再检查游戏是否结束
         // 如果当前是AI，且还没有落子
-        if (game.getCurrentPlayer() == GomokuBoard.WHITE) {
-            int[] aiMove = game.aiMove();
-            result.put("aiMove", aiMove);
+        int[] aiMove = null;
+        if (!game.isGameOver() && game.getCurrentPlayer() == GomokuBoard.WHITE) {
+            aiMove = game.aiMove();
         }
+        result.put("aiMove", aiMove);
         
         result.putAll(buildState(game, sessionId));
         return result;
@@ -155,14 +152,17 @@ public class GomokuController {
         state.put("moveCount", game.getMoveCount());
         state.put("difficulty", game.getDifficulty().getLevel());
 
+        // 确保 winnerText 始终存在
         if (game.isGameOver()) {
             if (game.getWinner() == GomokuBoard.BLACK) {
-                state.put("winnerText", "你赢了!");
+                state.put("winnerText", "你赢了！");
             } else if (game.getWinner() == GomokuBoard.WHITE) {
-                state.put("winnerText", "AI获胜");
+                state.put("winnerText", "AI获胜！");
             } else {
-                state.put("winnerText", "平局");
+                state.put("winnerText", "平局！");
             }
+        } else {
+            state.put("winnerText", "");
         }
 
         return state;

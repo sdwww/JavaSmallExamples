@@ -14,6 +14,7 @@ public class GomokuAI {
 
     private static final int MAX_SEARCH_TIME_MS = 12000;
     private static final int MAX_DEPTH = 12;
+    private static final int BOARD_SIZE = 15;
 
     // 并行搜索配置
     private static final int PARALLEL_THREAD_COUNT = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
@@ -25,20 +26,27 @@ public class GomokuAI {
 
     static {
         Runtime.getRuntime().addShutdownHook(new Thread(parallelExecutor::shutdown));
-        initZobrist();
     }
 
-    // ===== Zobrist 哈希 =====
-    private static final long[][][] ZOBRIST = new long[GomokuBoard.BOARD_SIZE][GomokuBoard.BOARD_SIZE][3];
-
-    private static void initZobrist() {
-        Random rand = new Random(42);
-        for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
-            for (int j = 0; j < GomokuBoard.BOARD_SIZE; j++) {
-                ZOBRIST[i][j][GomokuBoard.BLACK] = rand.nextLong();
-                ZOBRIST[i][j][GomokuBoard.WHITE] = rand.nextLong();
+    // ===== Zobrist 哈希 - 使用 Holder 模式确保正确初始化 =====
+    private static class ZobristHolder {
+        static final long[][][] TABLE = initZobristTable();
+        
+        private static long[][][] initZobristTable() {
+            long[][][] table = new long[BOARD_SIZE][BOARD_SIZE][3];
+            Random rand = new Random(42);
+            for (int i = 0; i < BOARD_SIZE; i++) {
+                for (int j = 0; j < BOARD_SIZE; j++) {
+                    table[i][j][1] = rand.nextLong(); // BLACK = 1
+                    table[i][j][2] = rand.nextLong(); // WHITE = 2
+                }
             }
+            return table;
         }
+    }
+    
+    private static long[][][] getZobrist() {
+        return ZobristHolder.TABLE;
     }
 
     // ===== 置换表 =====
@@ -148,7 +156,7 @@ public class GomokuAI {
 
                 for (int[] move : searchCandidates) {
                     searchBoard[move[0]][move[1]] = GomokuBoard.WHITE;
-                    long newHash = hash ^ ZOBRIST[move[0]][move[1]][GomokuBoard.WHITE];
+                    long newHash = hash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
 
                     if (checkWinAt(searchBoard, move[0], move[1], GomokuBoard.WHITE)) {
                         searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
@@ -203,7 +211,7 @@ public class GomokuAI {
 
                         int[] move = candidates.get(i);
                         threadBoard[move[0]][move[1]] = GomokuBoard.WHITE;
-                        long newHash = threadHash ^ ZOBRIST[move[0]][move[1]][GomokuBoard.WHITE];
+                        long newHash = threadHash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
 
                         if (checkWinAt(threadBoard, move[0], move[1], GomokuBoard.WHITE)) {
                             threadBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
@@ -285,7 +293,7 @@ public class GomokuAI {
             int[] move = candidates.get(moveIdx);
 
             board[move[0]][move[1]] = currentPlayer;
-            long newHash = hash ^ ZOBRIST[move[0]][move[1]][currentPlayer];
+            long newHash = hash ^ getZobrist()[move[0]][move[1]][currentPlayer];
 
             // 快速胜负检测 O(20)，替代全盘扫描 O(900)
             if (checkWinAt(board, move[0], move[1], currentPlayer)) {
@@ -428,10 +436,10 @@ public class GomokuAI {
 
     private long computeHash(int[][] board) {
         long hash = 0;
-        for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
-            for (int j = 0; j < GomokuBoard.BOARD_SIZE; j++) {
+        for (int i = 0; i < BOARD_SIZE && i < board.length; i++) {
+            for (int j = 0; j < BOARD_SIZE && j < board[i].length; j++) {
                 if (board[i][j] != GomokuBoard.EMPTY) {
-                    hash ^= ZOBRIST[i][j][board[i][j]];
+                    hash ^= getZobrist()[i][j][board[i][j]];
                 }
             }
         }

@@ -55,16 +55,20 @@ public class GomokuController {
 
         Map<String, Object> result = new HashMap<>();
         
+        // 默认值
+        result.put("playerMove", null);
+        result.put("playerMoveSuccess", false);
+        result.put("aiMove", null);
+        result.put("aiNeedPoll", false);
+        
         if (game.isGameOver()) {
             result.putAll(buildState(game, sessionId));
-            result.put("success", false);
             result.put("error", "游戏已结束");
             return result;
         }
 
         if (game.getCurrentPlayer() != GomokuBoard.BLACK) {
             result.putAll(buildState(game, sessionId));
-            result.put("success", false);
             result.put("error", "等待AI落子");
             return result;
         }
@@ -79,8 +83,6 @@ public class GomokuController {
 
         // AI落子 - 异步执行，玩家落子后立即返回
         if (playerSuccess && !game.isGameOver()) {
-            // 不在这里同步等待AI，让前端轮询获取AI落子
-            result.put("aiMove", null);
             result.put("aiNeedPoll", true); // 标记需要前端轮询
         }
         result.putAll(buildState(game, sessionId));
@@ -97,18 +99,25 @@ public class GomokuController {
         
         Map<String, Object> result = new HashMap<>();
         
+        // 默认值
+        result.put("aiMove", null);
+        
         if (game == null) {
             result.put("error", "游戏不存在");
+            result.put("sessionId", sessionId);
+            result.put("board", new int[15][15]);
+            result.put("currentPlayer", 1);
+            result.put("gameOver", false);
+            result.put("winnerText", "");
             return result;
         }
         
         // 先让AI落子，再检查游戏是否结束
         // 如果当前是AI，且还没有落子
-        int[] aiMove = null;
         if (!game.isGameOver() && game.getCurrentPlayer() == GomokuBoard.WHITE) {
-            aiMove = game.aiMove();
+            int[] aiMove = game.aiMove();
+            result.put("aiMove", aiMove);
         }
-        result.put("aiMove", aiMove);
         
         result.putAll(buildState(game, sessionId));
         return result;

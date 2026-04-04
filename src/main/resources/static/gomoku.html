@@ -338,14 +338,35 @@
 
         // 轮询获取AI落子
         async function pollAiMove() {
-            while (isThinking) {
+            let retryCount = 0;
+            const maxRetries = 100; // 最多重试100次（10秒）
+            
+            while (isThinking && retryCount < maxRetries) {
                 try {
                     const response = await fetch(`/api/gomoku/ai-move/${sessionId}`);
                     const data = await response.json();
 
-                    board = data.board;
-                    currentPlayer = data.currentPlayer;
-                    gameOver = data.gameOver;
+                    // 检查是否有错误
+                    if (data.error) {
+                        console.error('AI落子错误:', data.error);
+                        // 如果游戏不存在，重新初始化
+                        if (data.error === '游戏不存在') {
+                            isThinking = false;
+                            initGame();
+                            return;
+                        }
+                    }
+
+                    // 确保数据有效
+                    if (data.board) {
+                        board = data.board;
+                    }
+                    if (data.currentPlayer !== undefined) {
+                        currentPlayer = data.currentPlayer;
+                    }
+                    if (data.gameOver !== undefined) {
+                        gameOver = data.gameOver;
+                    }
 
                     renderBoard();
 
@@ -370,12 +391,23 @@
                         isThinking = false;
                         break;
                     }
+                    
+                    retryCount++;
                 } catch (error) {
                     console.error('获取AI落子失败:', error);
+                    retryCount++;
                 }
 
                 // 等待一段时间后重试
                 await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            // 超时处理
+            if (retryCount >= maxRetries) {
+                console.error('AI落子超时');
+                document.getElementById('message').textContent = 'AI响应超时，请重试';
+                document.getElementById('message').className = '';
+                isThinking = false;
             }
         }
 
@@ -400,29 +432,31 @@
             }
         }
 
-        // 重置游戏
+        // 重置游戏 - 使用创建新游戏的方式，确保状态完全干净
         async function resetGame() {
             if (isThinking) {
                 console.log('正在思考中，请稍候...');
                 return;
             }
             
-            const difficulty = getDifficulty();
+            // 强制重置所有状态
+            isThinking = false;
+            gameOver = false;
+            lastMove = null;
+            
             try {
                 console.log('开始重置游戏...');
-                const response = await fetch(`/api/gomoku/reset/${sessionId}?difficulty=${difficulty}`, {
-                    method: 'POST'
-                });
+                // 直接创建新游戏，确保状态完全干净
+                const difficulty = getDifficulty();
+                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}`);
                 const data = await response.json();
                 
-                console.log('重置响应:', data);
+                console.log('新游戏响应:', data);
 
                 sessionId = data.sessionId;
                 board = data.board;
                 currentPlayer = data.currentPlayer;
                 gameOver = data.gameOver;
-                lastMove = null;
-                isThinking = false;
 
                 document.getElementById('message').textContent = '';
                 document.getElementById('message').className = '';
@@ -438,7 +472,7 @@
 
         // 页面加载时初始化
         // 添加版本号强制刷新缓存
-        console.log('五子棋游戏初始化 - 版本 20260404');
+        console.log('五子棋游戏初始化 - 版本 20260404-v2');
         initGame();
     </script>
 </body>

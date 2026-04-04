@@ -5,6 +5,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 五子棋游戏服务（线程安全）
@@ -12,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 1. 使用 ConcurrentHashMap 保证线程安全
  * 2. 添加定时清理机制，防止内存泄漏
  * 3. 统一管理游戏状态
+ * 4. CompletableFuture 异步AI计算
  */
 @Service
 public class GameService {
@@ -21,6 +25,19 @@ public class GameService {
     
     // 游戏最后活跃时间（用于清理）
     private final Map<String, Long> lastActiveTime = new ConcurrentHashMap<>();
+    
+    // 异步AI计算任务
+    private final Map<String, CompletableFuture<int[]>> pendingAiMoves = new ConcurrentHashMap<>();
+    
+    // AI计算线程池
+    private final ExecutorService aiExecutor = Executors.newFixedThreadPool(
+        Math.max(2, Runtime.getRuntime().availableProcessors() - 1),
+        r -> {
+            Thread t = new Thread(r, "AI-Async-Worker");
+            t.setDaemon(true);
+            return t;
+        }
+    );
     
     // 游戏超时时间：30分钟
     private static final long GAME_TIMEOUT_MS = 30 * 60 * 1000;
@@ -98,6 +115,68 @@ public class GameService {
     public void removeGame(String sessionId) {
         games.remove(sessionId);
         lastActiveTime.remove(sessionId);
+        cancelAiMove(sessionId);
+    }
+    
+    // ===== 异步AI计算 =====
+    
+    /**
+     * 启动异步AI计算
+     */
+    public void startAsyncAiMove(String sessionId) {
+        GomokuGame game = games.get(sessionId);
+        if (game == null || game.isGameOver() || game.getCurrentPlayer() != GomokuBoard.WHITE) {
+            return;
+        }
+        
+        // 取消之前的计算（如果有）
+        cancelAiMove(sessionId);
+        
+        CompletableFuture<int[]> future = CompletableFuture.supplyAsync(() -> {
+            return game.aiMove();
+        }, aiExecutor);
+        
+        pendingAiMoves.put(sessionId, future);
+    }
+    
+    /**
+     * 检查异步AI计算是否完成
+     * @return AI落子位置，未完成返回null
+     */
+    public int[] getAsyncAiMoveResult(String sessionId) {
+        CompletableFuture<int[]> future = pendingAiMoves.get(sessionId);
+        if (future == null) {
+            return null;
+        }
+        
+        if (future.isDone()) {
+            pendingAiMoves.remove(sessionId);
+            try {
+                return future.get();
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        
+        return null; // 还在计算中
+    }
+    
+    /**
+     * AI是否正在计算
+     */
+    public boolean isAiThinking(String sessionId) {
+        CompletableFuture<int[]> future = pendingAiMoves.get(sessionId);
+        return future != null && !future.isDone();
+    }
+    
+    /**
+     * 取消异步AI计算
+     */
+    public void cancelAiMove(String sessionId) {
+        CompletableFuture<int[]> future = pendingAiMoves.remove(sessionId);
+        if (future != null && !future.isDone()) {
+            future.cancel(true);
+        }
     }
     
     /**
@@ -118,6 +197,7 @@ public class GameService {
             long lastActive = lastActiveTime.getOrDefault(sessionId, 0L);
             if (currentTime - lastActive > GAME_TIMEOUT_MS) {
                 lastActiveTime.remove(sessionId);
+                cancelAiMove(sessionId);
                 return true;
             }
             return false;

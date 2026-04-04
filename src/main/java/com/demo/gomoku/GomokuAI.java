@@ -14,11 +14,13 @@ import java.util.concurrent.*;
  */
 public class GomokuAI {
 
-    private static final int MAX_SEARCH_TIME_MS = 12000;
-    private static final int MAX_DEPTH = 12;
+    private static final int MAX_SEARCH_TIME_MS = 5000;
+    private static final int MAX_DEPTH = 10;
     private static final int BOARD_SIZE = 15;
     private static final int MEDIUM_MAX_DEPTH = 4; // 中等难度搜索深度
     private static final int MEDIUM_MAX_TIME_MS = 3000; // 中等难度时间限制
+    private static final int HARD_CANDIDATE_LIMIT = 35; // 困难模式顶层候选数
+    private static final int MINMAX_CANDIDATE_LIMIT = 18; // minmax内部每层候选数
 
     // 并行搜索配置
     private static final int PARALLEL_THREAD_COUNT = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
@@ -72,6 +74,8 @@ public class GomokuAI {
     private volatile int[] parallelBestMove = null;
     private volatile int parallelBestScore = Integer.MIN_VALUE;
     private volatile boolean searchCompleted = false;
+
+    private volatile long searchStartTime = 0; // 搜索开始时间（用于minmax内部超时检查）
 
     public GomokuAI(Difficulty difficulty) {
         this.evaluator = new PatternEvaluator();
@@ -215,6 +219,7 @@ public class GomokuAI {
         int[][] searchBoard = copyBoard(board);
         long hash = computeHash(board);
         long startTime = System.currentTimeMillis();
+        searchStartTime = startTime; // 设置搜索开始时间（供minmax内部检查）
         int maxTime = MAX_SEARCH_TIME_MS;
         int depth = 1;
 
@@ -228,7 +233,7 @@ public class GomokuAI {
             long remainingTime = maxTime - (System.currentTimeMillis() - startTime);
             if (remainingTime < 200) break;
 
-            int limit = Math.min(candidates.size(), 80);
+            int limit = Math.min(candidates.size(), HARD_CANDIDATE_LIMIT);
             List<int[]> searchCandidates = candidates.subList(0, limit);
 
             parallelBestMove = bestMove;
@@ -357,10 +362,16 @@ public class GomokuAI {
         if (ttScore != Integer.MIN_VALUE) return ttScore;
 
         int currentPlayer = isMaximizing ? GomokuBoard.WHITE : GomokuBoard.BLACK;
-        List<int[]> candidates = threatDetector.getCandidateMoves(board, difficulty.getSearchRange(), true, 70);
+        
+        // 超时检查 - 避免搜索过久
+        if (searchStartTime > 0 && System.currentTimeMillis() - searchStartTime > MAX_SEARCH_TIME_MS * 0.9) {
+            return evaluator.evaluateBoard(board);
+        }
+        
+        List<int[]> candidates = threatDetector.getCandidateMoves(board, difficulty.getSearchRange(), true, MINMAX_CANDIDATE_LIMIT);
         if (candidates.isEmpty()) return evaluator.evaluateBoard(board);
 
-        int limit = Math.min(candidates.size(), 70);
+        int limit = Math.min(candidates.size(), MINMAX_CANDIDATE_LIMIT);
         int origAlpha = alpha;
         int bestScore = isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE;
         int[] bestMoveInNode = null;

@@ -756,15 +756,7 @@
                     // 如果需要轮询获取AI落子
                     if (data.aiNeedPoll) {
                         await pollAiMove();
-                        // 轮询结束后，再次检查游戏状态（AI可能获胜）
-                        if (gameOver) {
-                            updateUndoButton(false);
-                        } else {
-                            updateCurrentPlayer();
-                            updateMoveCount(data.moveCount || 0);
-                            document.getElementById('message').textContent = '';
-                            document.getElementById('message').className = '';
-                        }
+                        // pollAiMove 内部已处理所有状态更新
                     } else if (data.aiMove) {
                         // 兼容模式：直接获取AI落子
                         highlightMove(data.aiMove[0], data.aiMove[1]);
@@ -806,10 +798,10 @@
             }
         }
 
-        // 轮询获取AI落子
+        // 轮询获取AI落子（适配异步计算）
         async function pollAiMove() {
             let retryCount = 0;
-            const maxRetries = 100; // 最多重试100次（10秒）
+            const maxRetries = 300; // 最多轮询30秒（300次 x 100ms）
             
             while (isThinking && retryCount < maxRetries) {
                 try {
@@ -819,7 +811,6 @@
                     // 检查是否有错误
                     if (data.error) {
                         console.error('AI落子错误:', data.error);
-                        // 如果游戏不存在，重新初始化
                         if (data.error === '游戏不存在') {
                             isThinking = false;
                             initGame();
@@ -827,43 +818,42 @@
                         }
                     }
 
-                    // 确保数据有效
-                    if (data.board) {
-                        board = data.board;
-                    }
-                    if (data.currentPlayer !== undefined) {
-                        currentPlayer = data.currentPlayer;
-                    }
-                    if (data.gameOver !== undefined) {
-                        gameOver = data.gameOver;
-                    }
-
-                    renderBoard();
-
-                    // 高亮AI落子
+                    // AI已经落子 - 更新状态
                     if (data.aiMove) {
+                        if (data.board) board = data.board;
+                        if (data.currentPlayer !== undefined) currentPlayer = data.currentPlayer;
+                        if (data.gameOver !== undefined) gameOver = data.gameOver;
+                        
+                        renderBoard();
                         highlightMove(data.aiMove[0], data.aiMove[1]);
-                    }
-                    
-                    // 更新棋谱和悔棋按钮
-                    updateHistory(data.moveHistory || []);
-                    updateUndoButton(data.canUndo);
-                    
-                    // 检查游戏是否结束（优先显示胜利提示）
-                    if (gameOver) {
-                        document.getElementById('message').textContent = data.winnerText || '游戏结束';
-                        document.getElementById('message').className = 'game-over';
+                        updateHistory(data.moveHistory || []);
+                        updateUndoButton(data.canUndo);
+                        
+                        // AI落子后检查游戏是否结束
+                        if (gameOver) {
+                            document.getElementById('message').textContent = data.winnerText || '游戏结束';
+                            document.getElementById('message').className = 'game-over';
+                            playWinSound();
+                        } else {
+                            updateCurrentPlayer();
+                            document.getElementById('message').textContent = '';
+                            document.getElementById('message').className = '';
+                        }
+                        
+                        // 计算AI思考时间
+                        if (aiThinkStartTime) {
+                            updateThinkTime((Date.now() - aiThinkStartTime) / 1000);
+                        }
+                        
                         isThinking = false;
                         break;
                     }
                     
-                    // 如果AI已经落子且游戏未结束，更新状态并退出轮询
-                    if (data.aiMove) {
-                        updateCurrentPlayer();
-                        document.getElementById('message').textContent = '';
-                        document.getElementById('message').className = '';
-                        isThinking = false;
-                        break;
+                    // AI还在计算中，显示思考时间
+                    if (data.aiThinking && aiThinkStartTime) {
+                        const elapsed = ((Date.now() - aiThinkStartTime) / 1000).toFixed(1);
+                        document.getElementById('message').textContent = `AI思考中... ${elapsed}s`;
+                        document.getElementById('message').className = 'thinking';
                     }
                     
                     retryCount++;
@@ -872,7 +862,7 @@
                     retryCount++;
                 }
 
-                // 等待一段时间后重试
+                // 等待100ms后重试
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
             

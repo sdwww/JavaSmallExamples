@@ -81,9 +81,10 @@ public class GomokuController {
             result.put("error", "无效的落子位置");
         }
 
-        // AI落子 - 异步执行，玩家落子后立即返回
+        // AI落子 - 立即启动异步计算，玩家落子后立即返回
         if (playerSuccess && !game.isGameOver()) {
-            result.put("aiNeedPoll", true); // 标记需要前端轮询
+            result.put("aiNeedPoll", true);
+            gameService.startAsyncAiMove(sessionId); // 立即启动AI计算
         }
         result.putAll(buildState(game, sessionId));
 
@@ -91,15 +92,13 @@ public class GomokuController {
     }
 
     /**
-     * AI异步落子（前端轮询获取）
+     * AI异步落子（前端轮询获取，非阻塞）
      */
     @GetMapping("/ai-move/{sessionId}")
     public Map<String, Object> aiMove(@PathVariable String sessionId) {
         GomokuGame game = gameService.getGame(sessionId);
         
         Map<String, Object> result = new HashMap<>();
-        
-        // 默认值
         result.put("aiMove", null);
         
         if (game == null) {
@@ -112,12 +111,14 @@ public class GomokuController {
             return result;
         }
         
-        // 先让AI落子，再检查游戏是否结束
-        // 如果当前是AI，且还没有落子
-        if (!game.isGameOver() && game.getCurrentPlayer() == GomokuBoard.WHITE) {
-            int[] aiMove = game.aiMove();
-            result.put("aiMove", aiMove);
+        // 非阻塞检查异步AI计算结果
+        int[] aiMoveResult = gameService.getAsyncAiMoveResult(sessionId);
+        if (aiMoveResult != null) {
+            result.put("aiMove", aiMoveResult);
         }
+        
+        // 标记AI是否还在计算
+        result.put("aiThinking", gameService.isAiThinking(sessionId));
         
         result.putAll(buildState(game, sessionId));
         return result;
@@ -130,6 +131,7 @@ public class GomokuController {
     public synchronized Map<String, Object> reset(@PathVariable String sessionId,
                                      @RequestParam(defaultValue = "2") int difficulty) {
         Difficulty diff = Difficulty.fromLevel(difficulty);
+        gameService.cancelAiMove(sessionId); // 取消正在进行的AI计算
         gameService.resetGame(sessionId, diff);
         GomokuGame game = gameService.getGame(sessionId);
         return buildState(game, sessionId);
@@ -162,6 +164,9 @@ public class GomokuController {
         }
         
         boolean success = game.undoMove();
+        if (success) {
+            gameService.cancelAiMove(sessionId); // 取消正在进行的AI计算
+        }
         result.put("undoSuccess", success);
         if (!success) {
             result.put("error", "无法悔棋（步数不足）");

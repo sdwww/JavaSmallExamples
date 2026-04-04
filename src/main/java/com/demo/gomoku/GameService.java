@@ -91,13 +91,14 @@ public class GameService {
     /**
      * 重置游戏
      */
-    public void resetGame(String sessionId, Difficulty difficulty) {
+    public GomokuGame resetGame(String sessionId, Difficulty difficulty) {
         GomokuGame game = games.get(sessionId);
         if (game != null) {
             game.reset(difficulty);
             updateActiveTime(sessionId);
+            return game;
         } else {
-            createGame(sessionId, difficulty);
+            return createGame(sessionId, difficulty);
         }
     }
     

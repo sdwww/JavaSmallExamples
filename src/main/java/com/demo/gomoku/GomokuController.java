@@ -22,12 +22,15 @@ public class GomokuController {
 
     /**
      * 创建新游戏
+     * @param firstPlayer 1=玩家先手, 2=AI先手
      */
     @GetMapping("/new")
-    public Map<String, Object> newGame(@RequestParam(defaultValue = "2") int difficulty) {
+    public Map<String, Object> newGame(@RequestParam(defaultValue = "2") int difficulty,
+                                       @RequestParam(defaultValue = "1") int firstPlayer) {
         Difficulty diff = Difficulty.fromLevel(difficulty);
         String sessionId = java.util.UUID.randomUUID().toString();
         GomokuGame game = gameService.getOrCreateGame(sessionId, diff); // 创建并注册游戏
+        game.setFirstPlayer(firstPlayer);
         return buildState(game, sessionId);
     }
 
@@ -74,6 +77,7 @@ public class GomokuController {
             return result;
         }
 
+        // 落子 - 玩家只能玩 BLACK (1)
         if (game.getCurrentPlayer() != GomokuBoard.BLACK) {
             result.putAll(buildState(game, sessionId));
             result.put("error", "等待AI落子");
@@ -118,6 +122,13 @@ public class GomokuController {
             return result;
         }
         
+        // 如果是 AI 回合且还没开始计算，主动启动 AI 计算
+        if (!game.isGameOver() && game.getCurrentPlayer() == GomokuBoard.WHITE) {
+            if (!gameService.isAiThinking(sessionId)) {
+                gameService.startAsyncAiMove(sessionId); // 启动 AI 计算
+            }
+        }
+        
         // 非阻塞检查异步AI计算结果
         int[] aiMoveResult = gameService.getAsyncAiMoveResult(sessionId);
         if (aiMoveResult != null) {
@@ -133,14 +144,16 @@ public class GomokuController {
 
     /**
      * 重置游戏
+     * @param firstPlayer 1=玩家先手, 2=AI先手
      */
     @PostMapping("/reset/{sessionId}")
     public synchronized Map<String, Object> reset(@PathVariable String sessionId,
-                                     @RequestParam(defaultValue = "2") int difficulty) {
+                                     @RequestParam(defaultValue = "2") int difficulty,
+                                     @RequestParam(defaultValue = "1") int firstPlayer) {
         Difficulty diff = Difficulty.fromLevel(difficulty);
         gameService.cancelAiMove(sessionId); // 取消正在进行的AI计算
-        gameService.resetGame(sessionId, diff);
-        GomokuGame game = gameService.getGame(sessionId);
+        GomokuGame game = gameService.resetGame(sessionId, diff);
+        game.setFirstPlayer(firstPlayer);
         return buildState(game, sessionId);
     }
 

@@ -388,7 +388,12 @@
                 <option value="2">中等</option>
                 <option value="3" selected>困难</option>
             </select>
-            <button class="difficulty-btn" onclick="applyDifficulty()">应用难度</button>
+            <label style="margin-left:10px;">先手:</label>
+            <select id="firstPlayer">
+                <option value="1" selected>我(黑)</option>
+                <option value="2">AI(白)</option>
+            </select>
+            <button class="difficulty-btn" onclick="applyDifficulty()">应用</button>
             <button class="sound-toggle" onclick="toggleSound()" title="音效开关">🔊</button>
         </div>
     </div>
@@ -629,20 +634,18 @@
             }, { passive: true });
         }
 
-        // 应用难度
+        // 应用难度（同时重新开始游戏）
         async function applyDifficulty() {
-            if (!sessionId) {
-                initGame();
-                return;
-            }
             const difficulty = getDifficulty();
+            const firstPlayer = parseInt(document.getElementById('firstPlayer').value);
             try {
-                await fetch(`/api/gomoku/reset/${sessionId}?difficulty=${difficulty}`, {
+                // 重置游戏，传入先手设置
+                await fetch(`/api/gomoku/reset/${sessionId}?difficulty=${difficulty}&firstPlayer=${firstPlayer}`, {
                     method: 'POST'
                 });
                 initGame();
             } catch (error) {
-                console.error('设置难度失败:', error);
+                console.error('设置失败:', error);
                 initGame();
             }
         }
@@ -662,7 +665,8 @@
                 
                 // 调用API创建新游戏
                 const difficulty = getDifficulty();
-                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}`);
+                const firstPlayer = parseInt(document.getElementById('firstPlayer').value);
+                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}&firstPlayer=${firstPlayer}`);
                 const data = await response.json();
                 
                 console.log('新游戏响应:', data);
@@ -682,6 +686,15 @@
                 updateCurrentPlayer();
                 document.getElementById('message').textContent = '';
                 document.getElementById('message').className = '';
+                
+                // 如果是AI先手，自动触发AI落子
+                if (currentPlayer === 2 && !gameOver) {
+                    isThinking = true;
+                    aiThinkStartTime = Date.now();
+                    document.getElementById('message').textContent = 'AI思考中...';
+                    document.getElementById('message').className = 'thinking';
+                    await pollAiMove();
+                }
                 
                 console.log('游戏初始化完成');
             } catch (error) {
@@ -930,10 +943,10 @@
                 initBoard();
                 console.log('棋盘DOM已重置');
                 
-                // 直接创建新游戏，确保状态完全干净，添加时间戳避免缓存
+                // 直接创建新游戏，确保状态完全干净
                 const difficulty = getDifficulty();
-                const timestamp = Date.now();
-                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}&_t=${timestamp}`);
+                const firstPlayer = parseInt(document.getElementById('firstPlayer').value);
+                const response = await fetch(`/api/gomoku/new?difficulty=${difficulty}&firstPlayer=${firstPlayer}`);
                 const data = await response.json();
                 
                 console.log('新游戏响应:', data);
@@ -958,12 +971,17 @@
                 updateCurrentPlayer();
                 
                 console.log('游戏重置完成 - 棋盘:', board, '当前玩家:', currentPlayer, '游戏结束:', gameOver);
-                console.log('页面显示 - 当前玩家:', document.getElementById('currentPlayer').textContent, '步数:', document.getElementById('moveCount').textContent);
                 
-                // 检查是否需要等待AI落子（理论上不应该，因为新游戏应该从玩家开始）
+                // 如果是AI先手，自动触发AI落子
                 if (currentPlayer === 2 && !gameOver) {
-                    console.warn('警告：新游戏AI回合，这不应该发生');
+                    isThinking = true;
+                    aiThinkStartTime = Date.now();
+                    document.getElementById('message').textContent = 'AI思考中...';
+                    document.getElementById('message').className = 'thinking';
+                    await pollAiMove();
                 }
+                
+                console.log('页面显示 - 当前玩家:', document.getElementById('currentPlayer').textContent, '步数:', document.getElementById('moveCount').textContent);
             } catch (error) {
                 console.error('重置游戏失败:', error);
                 initGame();

@@ -33,6 +33,16 @@ public class GomokuGame {
         this.difficulty = difficulty;
     }
     
+    /**
+     * 设置先手方
+     * @param firstPlayer GomokuBoard.BLACK(玩家先手) 或 GomokuBoard.WHITE(AI先手)
+     */
+    public void setFirstPlayer(int firstPlayer) {
+        if (firstPlayer == GomokuBoard.BLACK || firstPlayer == GomokuBoard.WHITE) {
+            this.currentPlayer = firstPlayer;
+        }
+    }
+    
     public GomokuGame(int difficultyLevel) {
         this(Difficulty.fromLevel(difficultyLevel));
     }

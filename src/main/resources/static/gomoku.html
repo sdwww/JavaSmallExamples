@@ -98,15 +98,15 @@
         }
         #board {
             display: grid;
-            grid-template-columns: repeat(15, 36px);
-            grid-template-rows: repeat(15, 36px);
+            grid-template-columns: repeat(15, 52px);
+            grid-template-rows: repeat(15, 52px);
             gap: 0;
             background: #DEB887;
             position: relative;
         }
         .cell {
-            width: 36px;
-            height: 36px;
+            width: 52px;
+            height: 52px;
             border: 1px solid #8B7355;
             display: flex;
             align-items: center;
@@ -130,8 +130,8 @@
             cursor: not-allowed;
         }
         .piece {
-            width: 30px;
-            height: 30px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
             box-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             transition: transform 0.2s;
@@ -217,17 +217,106 @@
             transform: scale(1.1);
         }
         
+        /* 棋盘坐标 */
+        .board-with-coords {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .col-labels {
+            display: flex;
+            margin-bottom: 2px;
+            padding-left: 22px;
+        }
+        .col-labels span {
+            width: 52px;
+            text-align: center;
+            font-size: 12px;
+            color: #5a4a3a;
+            font-weight: bold;
+        }
+        .board-row-wrapper {
+            display: flex;
+            align-items: center;
+        }
+        .row-label {
+            width: 20px;
+            text-align: right;
+            font-size: 12px;
+            color: #5a4a3a;
+            font-weight: bold;
+            margin-right: 2px;
+        }
+        
+        /* 主内容区 */
+        .main-content {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        /* 棋谱面板 */
+        .history-panel {
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 12px;
+            width: 160px;
+            max-height: 580px;
+            display: flex;
+            flex-direction: column;
+        }
+        .history-panel h3 {
+            color: white;
+            font-size: 14px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            font-size: 13px;
+            color: white;
+            line-height: 1.8;
+        }
+        .history-list .move-item {
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: default;
+        }
+        .history-list .move-item:nth-child(odd) {
+            background: rgba(255,255,255,0.05);
+        }
+        .history-list .move-item.latest {
+            background: rgba(76,175,80,0.3);
+        }
+        
+        /* 悔棋按钮 */
+        button.undo-btn {
+            background: #FF9800;
+        }
+        button.undo-btn:hover {
+            background: #F57C00;
+        }
+        button.undo-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
         /* 移动端适配 */
         @media (max-width: 768px) {
             h1 { font-size: 1.5em; }
             .info { font-size: 14px; gap: 10px; }
             #board {
-                grid-template-columns: repeat(15, 24px);
-                grid-template-rows: repeat(15, 24px);
+                grid-template-columns: repeat(15, 30px);
+                grid-template-rows: repeat(15, 30px);
             }
             .cell {
-                width: 24px;
-                height: 24px;
+                width: 30px;
+                height: 30px;
             }
             .cell::before {
                 top: -12px;
@@ -236,24 +325,30 @@
                 bottom: -12px;
             }
             .piece {
-                width: 20px;
-                height: 20px;
+                width: 24px;
+                height: 24px;
             }
             .board-container {
                 padding: 10px;
             }
+            .col-labels span { width: 30px; font-size: 11px; }
+            .row-label { font-size: 10px; width: 16px; }
+            .col-labels { padding-left: 18px; }
+            .history-panel { width: 130px; max-height: 420px; }
+            .history-panel h3 { font-size: 12px; }
+            .history-list { font-size: 11px; }
         }
         
         @media (max-width: 480px) {
             body { padding: 10px; }
             h1 { font-size: 1.2em; }
             #board {
-                grid-template-columns: repeat(15, 18px);
-                grid-template-rows: repeat(15, 18px);
+                grid-template-columns: repeat(15, 22px);
+                grid-template-rows: repeat(15, 22px);
             }
             .cell {
-                width: 18px;
-                height: 18px;
+                width: 22px;
+                height: 22px;
             }
             .cell::before {
                 top: -16px;
@@ -262,9 +357,13 @@
                 bottom: -16px;
             }
             .piece {
-                width: 14px;
-                height: 14px;
+                width: 18px;
+                height: 18px;
             }
+            .col-labels span { width: 22px; font-size: 10px; }
+            .row-label { font-size: 9px; width: 14px; }
+            .col-labels { padding-left: 16px; }
+            .history-panel { display: none; }
         }
     </style>
 </head>
@@ -287,14 +386,26 @@
             <button class="sound-toggle" onclick="toggleSound()" title="音效开关">🔊</button>
         </div>
     </div>
-    <div class="board-wrapper">
-        <div class="board-container" id="boardContainer">
-            <div id="board"></div>
+    <div class="main-content">
+        <div class="board-wrapper">
+            <div class="board-container" id="boardContainer">
+                <div class="board-with-coords">
+                    <div class="col-labels" id="colLabels"></div>
+                    <div id="boardRows"></div>
+                </div>
+            </div>
+        </div>
+        <div class="history-panel" id="historyPanel">
+            <h3>📜 棋谱记录</h3>
+            <div class="history-list" id="historyList">
+                <div style="color:rgba(255,255,255,0.5);text-align:center;padding:20px 0;">暂无落子</div>
+            </div>
         </div>
     </div>
     <div id="message"></div>
     <div class="controls">
         <button onclick="resetGame()">重新开始</button>
+        <button class="undo-btn" id="undoBtn" onclick="undoMove()" disabled>悔棋</button>
     </div>
 
     <script>
@@ -398,18 +509,37 @@
 
         // 初始化棋盘
         function initBoard() {
-            const boardEl = document.getElementById('board');
-            boardEl.innerHTML = '';
+            const boardRowsEl = document.getElementById('boardRows');
+            const colLabelsEl = document.getElementById('colLabels');
+            boardRowsEl.innerHTML = '';
+            colLabelsEl.innerHTML = '';
 
+            // 生成列标签 A-O
+            for (let j = 0; j < BOARD_SIZE; j++) {
+                const label = document.createElement('span');
+                label.textContent = String.fromCharCode(65 + j);
+                colLabelsEl.appendChild(label);
+            }
+
+            // 生成行（带行号和格子）
             for (let i = 0; i < BOARD_SIZE; i++) {
+                const rowWrapper = document.createElement('div');
+                rowWrapper.className = 'board-row-wrapper';
+                
+                const rowLabel = document.createElement('span');
+                rowLabel.className = 'row-label';
+                rowLabel.textContent = (i + 1).toString();
+                rowWrapper.appendChild(rowLabel);
+                
                 for (let j = 0; j < BOARD_SIZE; j++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.dataset.row = i;
                     cell.dataset.col = j;
                     cell.onclick = () => makeMove(i, j);
-                    boardEl.appendChild(cell);
+                    rowWrapper.appendChild(cell);
                 }
+                boardRowsEl.appendChild(rowWrapper);
             }
             
             // 重置所有显示状态
@@ -419,6 +549,8 @@
             document.getElementById('currentPlayer').className = 'black-text';
             document.getElementById('message').textContent = '';
             document.getElementById('message').className = '';
+            updateUndoButton(false);
+            updateHistory([]);
             
             // 添加移动端手势支持（只在触摸设备上）
             if ('ontouchstart' in window) {
@@ -533,6 +665,8 @@
                 gameOver = data.gameOver;
                 updateMoveCount(data.moveCount || 0);
                 updateThinkTime(null);
+                updateHistory(data.moveHistory || []);
+                updateUndoButton(data.canUndo || false);
                 
                 // 渲染棋盘
                 renderBoard();
@@ -552,17 +686,19 @@
 
         // 渲染棋盘
         function renderBoard() {
-            const boardEl = document.getElementById('board');
-            if (!boardEl || !boardEl.children || boardEl.children.length === 0) {
+            const boardRowsEl = document.getElementById('boardRows');
+            if (!boardRowsEl || boardRowsEl.children.length === 0) {
                 console.warn('棋盘尚未初始化，跳过渲染');
                 return;
             }
             
-            const cells = boardEl.children;
             for (let i = 0; i < BOARD_SIZE; i++) {
+                const rowWrapper = boardRowsEl.children[i];
+                if (!rowWrapper) continue;
+                
                 for (let j = 0; j < BOARD_SIZE; j++) {
-                    const cellIndex = i * BOARD_SIZE + j;
-                    const cell = cells[cellIndex];
+                    // +1 跳过 row-label
+                    const cell = rowWrapper.children[j + 1];
                     if (!cell) continue;
                     
                     cell.innerHTML = '';
@@ -607,6 +743,8 @@
                     gameOver = data.gameOver;
                     currentPlayer = data.currentPlayer;
                     updateMoveCount(data.moveCount || 0);
+                    updateHistory(data.moveHistory || []);
+                    updateUndoButton(data.canUndo);
                     
                     renderBoard();
                     
@@ -620,7 +758,7 @@
                         await pollAiMove();
                         // 轮询结束后，再次检查游戏状态（AI可能获胜）
                         if (gameOver) {
-                            // gameOver 已经在 pollAiMove 中更新，消息也已设置
+                            updateUndoButton(false);
                         } else {
                             updateCurrentPlayer();
                             updateMoveCount(data.moveCount || 0);
@@ -707,6 +845,10 @@
                         highlightMove(data.aiMove[0], data.aiMove[1]);
                     }
                     
+                    // 更新棋谱和悔棋按钮
+                    updateHistory(data.moveHistory || []);
+                    updateUndoButton(data.canUndo);
+                    
                     // 检查游戏是否结束（优先显示胜利提示）
                     if (gameOver) {
                         document.getElementById('message').textContent = data.winnerText || '游戏结束';
@@ -745,8 +887,10 @@
 
         // 高亮落子
         function highlightMove(row, col) {
-            const cellIndex = row * BOARD_SIZE + col;
-            const cell = document.getElementById('board').children[cellIndex];
+            const boardRowsEl = document.getElementById('boardRows');
+            if (!boardRowsEl || !boardRowsEl.children[row]) return;
+            const cell = boardRowsEl.children[row].children[col + 1]; // +1 跳过 row-label
+            if (!cell) return;
             const piece = cell.querySelector('.piece');
             if (piece) piece.classList.add('last');
             lastMove = { row, col };
@@ -800,6 +944,8 @@
                 // 更新统计数据
                 updateMoveCount(data.moveCount || 0);
                 updateThinkTime(null);
+                updateHistory(data.moveHistory || []);
+                updateUndoButton(data.canUndo || false);
 
                 document.getElementById('message').textContent = '';
                 document.getElementById('message').className = '';
@@ -823,7 +969,67 @@
 
         // 页面加载时初始化
         // 添加版本号强制刷新缓存
-        console.log('五子棋游戏初始化 - 版本 20260404-v9 (修复显示状态问题)');
+        console.log('五子棋游戏初始化 - 版本 20260404-v10 (添加悔棋+坐标+棋谱)');
+        
+        // 悔棋功能
+        async function undoMove() {
+            if (!sessionId || isThinking || gameOver) return;
+            
+            try {
+                const response = await fetch(`/api/gomoku/undo/${sessionId}`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.undoSuccess) {
+                    board = data.board;
+                    currentPlayer = data.currentPlayer;
+                    gameOver = data.gameOver;
+                    lastMove = null;
+                    updateMoveCount(data.moveCount || 0);
+                    updateHistory(data.moveHistory || []);
+                    updateUndoButton(data.canUndo);
+                    renderBoard();
+                    updateCurrentPlayer();
+                    document.getElementById('message').textContent = '';
+                    document.getElementById('message').className = '';
+                } else {
+                    document.getElementById('message').textContent = data.error || '无法悔棋';
+                    setTimeout(() => {
+                        document.getElementById('message').textContent = '';
+                    }, 2000);
+                }
+            } catch (error) {
+                console.error('悔棋失败:', error);
+            }
+        }
+        
+        // 更新悔棋按钮状态
+        function updateUndoButton(canUndo) {
+            const btn = document.getElementById('undoBtn');
+            if (btn) btn.disabled = !canUndo;
+        }
+        
+        // 更新棋谱显示
+        function updateHistory(historyList) {
+            const listEl = document.getElementById('historyList');
+            if (!listEl) return;
+            
+            if (!historyList || historyList.length === 0) {
+                listEl.innerHTML = '<div style="color:rgba(255,255,255,0.5);text-align:center;padding:20px 0;">暂无落子</div>';
+                return;
+            }
+            
+            listEl.innerHTML = '';
+            historyList.forEach((text, idx) => {
+                const div = document.createElement('div');
+                div.className = 'move-item' + (idx === historyList.length - 1 ? ' latest' : '');
+                div.textContent = text;
+                listEl.appendChild(div);
+            });
+            
+            // 滚动到底部
+            listEl.scrollTop = listEl.scrollHeight;
+        }
+        
         initGame();
     </script>
 </body>

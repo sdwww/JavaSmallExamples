@@ -148,6 +148,29 @@ public class GomokuController {
     }
 
     /**
+     * 悔棋
+     */
+    @PostMapping("/undo/{sessionId}")
+    public Map<String, Object> undo(@PathVariable String sessionId) {
+        GomokuGame game = gameService.getGame(sessionId);
+        Map<String, Object> result = new HashMap<>();
+        
+        if (game == null) {
+            result.put("error", "游戏不存在");
+            result.put("undoSuccess", false);
+            return result;
+        }
+        
+        boolean success = game.undoMove();
+        result.put("undoSuccess", success);
+        if (!success) {
+            result.put("error", "无法悔棋（步数不足）");
+        }
+        result.putAll(buildState(game, sessionId));
+        return result;
+    }
+
+    /**
      * 构建状态响应
      */
     private Map<String, Object> buildState(GomokuGame game, String sessionId) {
@@ -160,6 +183,8 @@ public class GomokuController {
         state.put("winner", game.getWinner());
         state.put("moveCount", game.getMoveCount());
         state.put("difficulty", game.getDifficulty().getLevel());
+        state.put("moveHistory", game.getMoveHistoryText());
+        state.put("canUndo", game.getMoveHistory().size() >= 2);
 
         // 确保 winnerText 始终存在
         if (game.isGameOver()) {

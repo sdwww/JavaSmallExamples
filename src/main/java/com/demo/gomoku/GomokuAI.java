@@ -9,12 +9,16 @@ import java.util.concurrent.*;
  * 1. 支持 Zobrist 置换表，避免重复计算
  * 2. minmax 使用 O(20) 快速胜负检测替代 O(900) 全盘扫描
  * 3. 杀手启发优化搜索顺序
+ * 4. 开局库 - 常见开局快速响应
+ * 5. 中等难度增加搜索深度
  */
 public class GomokuAI {
 
     private static final int MAX_SEARCH_TIME_MS = 12000;
     private static final int MAX_DEPTH = 12;
     private static final int BOARD_SIZE = 15;
+    private static final int MEDIUM_MAX_DEPTH = 4; // 中等难度搜索深度
+    private static final int MEDIUM_MAX_TIME_MS = 3000; // 中等难度时间限制
 
     // 并行搜索配置
     private static final int PARALLEL_THREAD_COUNT = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
@@ -80,15 +84,97 @@ public class GomokuAI {
     }
 
     /**
+     * 清空置换表（每局新游戏时调用）
+     */
+    public void clearTranspositionTable() {
+        Arrays.fill(ttKeys, 0);
+        Arrays.fill(ttScores, 0);
+        Arrays.fill(ttDepths, 0);
+        Arrays.fill(ttFlags, (byte) 0);
+        for (int i = 0; i <= MAX_DEPTH; i++) {
+            killerMoves[i][0] = -1;
+            killerMoves[i][1] = -1;
+        }
+    }
+
+    // ===== 开局库 =====
+    private static final int CENTER = GomokuBoard.BOARD_SIZE / 2;
+    
+    /**
+     * 开局库 - 根据棋盘状态快速返回最佳开局
+     */
+    private int[] getOpeningMove(int[][] board, int moveCount) {
+        // AI第一步（作为白方，第二手）: 贴近黑子
+        if (moveCount == 1) {
+            // 找到黑子位置
+            int br = -1, bc = -1;
+            for (int i = 0; i < BOARD_SIZE; i++) {
+                for (int j = 0; j < BOARD_SIZE; j++) {
+                    if (board[i][j] == GomokuBoard.BLACK) {
+                        br = i; bc = j; break;
+                    }
+                }
+                if (br >= 0) break;
+            }
+            if (br >= 0) {
+                // 在黑子周围随机选一个对角位置
+                int[][] offsets = {{1,1},{1,-1},{-1,1},{-1,-1}};
+                Random rand = new Random();
+                int[] offset = offsets[rand.nextInt(offsets.length)];
+                int nr = br + offset[0], nc = bc + offset[1];
+                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] == GomokuBoard.EMPTY) {
+                    return new int[]{nr, nc};
+                }
+            }
+            return new int[]{CENTER, CENTER};
+        }
+        
+        // AI第二步（第四手）: 常见开局定式
+        if (moveCount == 3) {
+            // 找到已有棋子
+            List<int[]> whites = new ArrayList<>();
+            List<int[]> blacks = new ArrayList<>();
+            for (int i = 0; i < BOARD_SIZE; i++) {
+                for (int j = 0; j < BOARD_SIZE; j++) {
+                    if (board[i][j] == GomokuBoard.WHITE) whites.add(new int[]{i, j});
+                    if (board[i][j] == GomokuBoard.BLACK) blacks.add(new int[]{i, j});
+                }
+            }
+            if (whites.size() == 1 && blacks.size() == 2) {
+                int[] w = whites.get(0);
+                // 在白子附近的空位中选择一个形成潜在威胁的位置
+                int[][] nearOffsets = {{0,1},{0,-1},{1,0},{-1,0},{1,1},{1,-1},{-1,1},{-1,-1}};
+                Random rand = new Random();
+                List<int[]> goodMoves = new ArrayList<>();
+                for (int[] off : nearOffsets) {
+                    int nr = w[0] + off[0], nc = w[1] + off[1];
+                    if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] == GomokuBoard.EMPTY) {
+                        goodMoves.add(new int[]{nr, nc});
+                    }
+                }
+                if (!goodMoves.isEmpty()) {
+                    return goodMoves.get(rand.nextInt(goodMoves.size()));
+                }
+            }
+        }
+        
+        return null; // 不在开局库范围内
+    }
+
+    /**
      * AI落子（主入口）
      */
     public int[] calculateMove(int[][] board) {
         int moveCount = countPieces(board);
 
-        // 第一步下中间
-        if (moveCount <= 1) {
-            return new int[]{GomokuBoard.BOARD_SIZE / 2, GomokuBoard.BOARD_SIZE / 2};
+        // 第一步下中间（黑方先手时，通常不会走到这里）
+        if (moveCount == 0) {
+            return new int[]{CENTER, CENTER};
         }
+        
+        // 开局库查询
+        int[] openingMove = getOpeningMove(board, moveCount);
+        if (openingMove != null) return openingMove;
 
         List<int[]> candidates = threatDetector.getCandidateMoves(
                 board,
@@ -110,7 +196,12 @@ public class GomokuAI {
             return calculateHardMove(board, candidates);
         }
 
-        // 中等/简单模式
+        // 中等模式：浅层搜索 + 评估
+        if (difficulty == Difficulty.MEDIUM) {
+            return calculateMediumMove(board, candidates);
+        }
+
+        // 简单模式
         return calculateEasyMove(board, candidates);
     }
 
@@ -349,7 +440,63 @@ public class GomokuAI {
     }
 
     /**
-     * 中等/简单模式AI
+     * 中等难度 - 浅层迭代加深搜索
+     */
+    private int[] calculateMediumMove(int[][] board, List<int[]> candidates) {
+        int[] bestMove = candidates.get(0);
+        int bestScore = Integer.MIN_VALUE;
+
+        int[][] searchBoard = copyBoard(board);
+        long hash = computeHash(board);
+        long startTime = System.currentTimeMillis();
+
+        // 清空杀手启发
+        for (int i = 0; i <= MAX_DEPTH; i++) {
+            killerMoves[i][0] = -1;
+            killerMoves[i][1] = -1;
+        }
+
+        int limit = Math.min(candidates.size(), 30);
+        List<int[]> searchCandidates = candidates.subList(0, limit);
+
+        for (int depth = 1; depth <= MEDIUM_MAX_DEPTH; depth++) {
+            long remainingTime = MEDIUM_MAX_TIME_MS - (System.currentTimeMillis() - startTime);
+            if (remainingTime < 100) break;
+
+            int currentBestScore = Integer.MIN_VALUE;
+            int[] currentBestMove = bestMove;
+
+            for (int[] move : searchCandidates) {
+                searchBoard[move[0]][move[1]] = GomokuBoard.WHITE;
+                long newHash = hash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
+
+                if (checkWinAt(searchBoard, move[0], move[1], GomokuBoard.WHITE)) {
+                    searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
+                    return move;
+                }
+
+                int score = minmax(searchBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
+                searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
+
+                if (score > currentBestScore) {
+                    currentBestScore = score;
+                    currentBestMove = move;
+                }
+
+                if (System.currentTimeMillis() - startTime > MEDIUM_MAX_TIME_MS * 0.8) break;
+            }
+
+            bestMove = currentBestMove;
+            bestScore = currentBestScore;
+
+            if (Math.abs(bestScore) >= PatternEvaluator.SCORE_FIVE) break;
+        }
+
+        return bestMove;
+    }
+
+    /**
+     * 简单模式AI
      */
     private int[] calculateEasyMove(int[][] board, List<int[]> candidates) {
         Map<String, Integer> scores = new HashMap<>();

@@ -297,33 +297,74 @@ public class ThreatDetector {
     /**
      * 查找跳跃三连（如 O_OO, OO_O 等）
      * 这是一种间接三连威胁
+     * 只有当落子后能形成五连时才防守
      */
     private int[] findJumpThree(int[][] board, int player) {
         int n = GomokuBoard.BOARD_SIZE;
-        
+            
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 if (board[i][j] == player) {
                     for (int[] dir : GomokuBoard.DIRECTIONS) {
-                        // 检查模式：棋子 + 空位 + 棋子 + 棋子 (O_OO)
-                        // 或：棋子 + 棋子 + 空位 + 棋子 (OO_O)
-                        
-                        int r1 = i + dir[0], c1 = j + dir[1];
-                        int r2 = i + 2 * dir[0], c2 = j + 2 * dir[1];
-                        int r3 = i + 3 * dir[0], c3 = j + 3 * dir[1];
-                        
-                        // 模式1: O_OO (当前位置是棋子，后面是空位+两棋子)
+                        // 模式: 棋子 + 空位 + 棋子 + 棋子 (O_OO)
+                        int r1 = i + dir[0], c1 = j + dir[1];  // 空位位置
+                        int r2 = i + 2 * dir[0], c2 = j + 2 * dir[1];  // 棋子
+                        int r3 = i + 3 * dir[0], c3 = j + 3 * dir[1];  // 棋子
+                            
+                        // 基础条件：O_OO 模式
                         if (r1 >= 0 && r1 < n && c1 >= 0 && c1 < n && 
                             board[r1][c1] == GomokuBoard.EMPTY &&
                             r2 >= 0 && r2 < n && c2 >= 0 && c2 < n && board[r2][c2] == player &&
                             r3 >= 0 && r3 < n && c3 >= 0 && c3 < n && board[r3][c3] == player) {
-                            // 找到一个跳跃三连，空位在r1,c1
-                            // 检查空位是否可落子（边界检查）
-                            return new int[]{r1, c1};
+                                
+                            // 检查落子后能否形成五连
+                            // 方案A: O_OO_ (右边有空位)
+                            int r4 = i + 4 * dir[0], c4 = j + 4 * dir[1];
+                            if (r4 >= 0 && r4 < n && c4 >= 0 && c4 < n && board[r4][c4] == GomokuBoard.EMPTY) {
+                                // 右边有空位，可以形成五连
+                                return new int[]{r1, c1};
+                            }
+                                
+                            // 方案B: _O_OO (左边有连续棋子)
+                            // 检查从 i-1 向左有多少连续棋子
+                            int leftCount = 0;
+                            int nr = i - dir[0], nc = j - dir[1];
+                            while (nr >= 0 && nr < n && nc >= 0 && nc < n && board[nr][nc] == player) {
+                                leftCount++;
+                                nr -= dir[0];
+                                nc -= dir[1];
+                            }
+                            if (leftCount >= 2) {
+                                // 左边有至少2个连续棋子，可以形成五连
+                                return new int[]{r1, c1};
+                            }
                         }
-                        
-                        // 模式2: O_O_O (当前位置+空位+棋子+空位+棋子) - 更远的跳跃
-                        // 这个模式威胁较小，暂不处理
+                            
+                        // 模式2: OO_O (两棋子 + 空位 + 棋子)
+                        // _ _ O _ O O
+                        int r_1 = i - dir[0], c_1 = j - dir[1];  // 反方向棋子
+                        int r_2 = i - 2 * dir[0], c_2 = j - 2 * dir[1];  // 反方向第二棋子
+                            
+                        if (r_1 >= 0 && r_1 < n && c_1 >= 0 && c_1 < n && board[r_1][c_1] == player &&
+                            r_2 >= 0 && r_2 < n && c_2 >= 0 && c_2 < n && board[r_2][c_2] == player &&
+                            r1 >= 0 && r1 < n && c1 >= 0 && c1 < n && board[r1][c1] == GomokuBoard.EMPTY &&
+                            r2 >= 0 && r2 < n && c2 >= 0 && c2 < n && board[r2][c2] == player) {
+                            // 方案A: OO_OO (右边有空位)
+                            int r3f = i + 3 * dir[0], c3f = j + 3 * dir[1];
+                            if (r3f >= 0 && r3f < n && c3f >= 0 && c3f < n && board[r3f][c3f] == GomokuBoard.EMPTY) {
+                                return new int[]{r1, c1};
+                            }
+                                
+                            // 方案B: _OO_O_ (右边被堵，检查左边)
+                            int r_3 = i - 3 * dir[0], c_3 = j - 3 * dir[1];
+                            if (r_3 >= 0 && r_3 < n && c_3 >= 0 && c_3 < n && board[r_3][c_3] == GomokuBoard.EMPTY) {
+                                // 检查从 r_3 向左是否至少1个空位（形成 _ _ O _ O O _）
+                                int r_4 = i - 4 * dir[0], c_4 = j - 4 * dir[1];
+                                if (r_4 >= 0 && r_4 < n && c_4 >= 0 && c_4 < n && board[r_4][c_4] == GomokuBoard.EMPTY) {
+                                    return new int[]{r1, c1};
+                                }
+                            }
+                        }
                     }
                 }
             }

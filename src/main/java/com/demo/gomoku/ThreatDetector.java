@@ -430,7 +430,7 @@ public class ThreatDetector {
     }
 
     /**
-     * 检测双活三/四三/活三+眠三组合
+     * 检测双活三/四三/活三+眠三组合（包括跳跃棋型）
      */
     public int[] findComboThreat(int[][] board, int opponent) {
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
@@ -440,9 +440,12 @@ public class ThreatDetector {
 
                     int liveThreeCount = 0;      // 活三数量（两端开放）
                     int sleepThreeCount = 0;      // 眠三数量（一端开放）
-                    int rushFourCount = 0;        // 冲四数量
+                    int rushFourCount = 0;        // 冲四数量（连续四连）
+                    int jumpFourCount = 0;         // 跳跃四数量（隔一位的四连）
+                    int jumpThreeCount = 0;        // 跳跃三数量（隔一位的三连）
 
                     for (int[] dir : GomokuBoard.DIRECTIONS) {
+                        // ===== 检测连续棋型 =====
                         int count = 1;
                         int emptyEnds = 0;
 
@@ -476,7 +479,7 @@ public class ThreatDetector {
                             board[i][j] = GomokuBoard.EMPTY;
                             return new int[]{i, j};
                         } else if (count == 4 && emptyEnds >= 1) {
-                            // 冲四
+                            // 冲四（连续四连）
                             rushFourCount++;
                         } else if (count == 3) {
                             // 三连
@@ -486,25 +489,123 @@ public class ThreatDetector {
                                 sleepThreeCount++; // 眠三
                             }
                         }
+                        
+                        // ===== 检测跳跃四 O_OOO（隔一位的四连）=====
+                        // 模式：棋子 + 空位 + 棋子 + 棋子 + 棋子
+                        int r1 = i + dir[0], c1 = j + dir[1];           // 第一个棋子
+                        int r2 = i + 2 * dir[0], c2 = j + 2 * dir[1];   // 空位
+                        int r3 = i + 3 * dir[0], c3 = j + 3 * dir[1];   // 棋子
+                        int r4 = i + 4 * dir[0], c4 = j + 4 * dir[1];   // 棋子
+                        int r_1 = i - dir[0], c_1 = j - dir[1];          // 反方向棋子
+                        
+                        // 模式1: O_OOO + 一端有棋子
+                        if (r1 >= 0 && r1 < GomokuBoard.BOARD_SIZE && c1 >= 0 && c1 < GomokuBoard.BOARD_SIZE && board[r1][c1] == opponent &&
+                            r2 >= 0 && r2 < GomokuBoard.BOARD_SIZE && c2 >= 0 && c2 < GomokuBoard.BOARD_SIZE && board[r2][c2] == GomokuBoard.EMPTY &&
+                            r3 >= 0 && r3 < GomokuBoard.BOARD_SIZE && c3 >= 0 && c3 < GomokuBoard.BOARD_SIZE && board[r3][c3] == opponent &&
+                            r4 >= 0 && r4 < GomokuBoard.BOARD_SIZE && c4 >= 0 && c4 < GomokuBoard.BOARD_SIZE && board[r4][c4] == opponent) {
+                            // 检查 r2 空位的两端是否都有棋子
+                            if (r_1 >= 0 && r_1 < GomokuBoard.BOARD_SIZE && c_1 >= 0 && c_1 < GomokuBoard.BOARD_SIZE && board[r_1][c_1] == opponent) {
+                                jumpFourCount++;
+                            }
+                            // 或者检查 r4 后面是否还有空间
+                            int r5 = i + 5 * dir[0], c5 = j + 5 * dir[1];
+                            if (r5 >= 0 && r5 < GomokuBoard.BOARD_SIZE && c5 >= 0 && c5 < GomokuBoard.BOARD_SIZE && board[r5][c5] == GomokuBoard.EMPTY) {
+                                jumpFourCount++;
+                            }
+                        }
+                        
+                        // 模式2: OO_OO（两端各两棋子中间空位）
+                        if (r2 >= 0 && r2 < GomokuBoard.BOARD_SIZE && c2 >= 0 && c2 < GomokuBoard.BOARD_SIZE && board[r2][c2] == GomokuBoard.EMPTY) {
+                            if (r1 >= 0 && r1 < GomokuBoard.BOARD_SIZE && c1 >= 0 && c1 < GomokuBoard.BOARD_SIZE && board[r1][c1] == opponent &&
+                                r_1 >= 0 && r_1 < GomokuBoard.BOARD_SIZE && c_1 >= 0 && c_1 < GomokuBoard.BOARD_SIZE && board[r_1][c_1] == opponent) {
+                                if (r3 >= 0 && r3 < GomokuBoard.BOARD_SIZE && c3 >= 0 && c3 < GomokuBoard.BOARD_SIZE && board[r3][c3] == opponent &&
+                                    r4 >= 0 && r4 < GomokuBoard.BOARD_SIZE && c4 >= 0 && c4 < GomokuBoard.BOARD_SIZE && board[r4][c4] == opponent) {
+                                    jumpFourCount++;
+                                }
+                            }
+                        }
+                        
+                        // ===== 检测跳跃三 O_OO（隔一位的三连）=====
+                        // 模式：棋子 + 空位 + 棋子 + 棋子
+                        // r1=空位, r2=棋子, r3=棋子
+                        if (r1 >= 0 && r1 < GomokuBoard.BOARD_SIZE && c1 >= 0 && c1 < GomokuBoard.BOARD_SIZE && board[r1][c1] == GomokuBoard.EMPTY &&
+                            r2 >= 0 && r2 < GomokuBoard.BOARD_SIZE && c2 >= 0 && c2 < GomokuBoard.BOARD_SIZE && board[r2][c2] == opponent &&
+                            r3 >= 0 && r3 < GomokuBoard.BOARD_SIZE && c3 >= 0 && c3 < GomokuBoard.BOARD_SIZE && board[r3][c3] == opponent) {
+                            
+                            // 方案A: O_OO_ (右边有空位)
+                            if (r4 >= 0 && r4 < GomokuBoard.BOARD_SIZE && c4 >= 0 && c4 < GomokuBoard.BOARD_SIZE && board[r4][c4] == GomokuBoard.EMPTY) {
+                                // 检查左边是否有棋子能形成五连
+                                if (r_1 >= 0 && r_1 < GomokuBoard.BOARD_SIZE && c_1 >= 0 && c_1 < GomokuBoard.BOARD_SIZE && board[r_1][c_1] == opponent) {
+                                    jumpThreeCount++;
+                                }
+                            }
+                            
+                            // 方案B: _O_OO (左边有连续棋子)
+                            int leftCount = 0;
+                            int nr = i - dir[0], nc = j - dir[1];
+                            while (nr >= 0 && nr < GomokuBoard.BOARD_SIZE && nc >= 0 && nc < GomokuBoard.BOARD_SIZE && board[nr][nc] == opponent) {
+                                leftCount++;
+                                nr -= dir[0];
+                                nc -= dir[1];
+                            }
+                            if (leftCount >= 2) {
+                                // 左边有至少2个连续棋子，可以形成五连
+                                jumpThreeCount++;
+                            }
+                        }
+                        
+                        // ===== 检测跳跃三 OO_O（两棋子 + 空位 + 棋子）=====
+                        // _ _ O _ O O
+                        int r_2 = i - 2 * dir[0], c_2 = j - 2 * dir[1];  // 反方向第二棋子
+                        if (r_1 >= 0 && r_1 < GomokuBoard.BOARD_SIZE && c_1 >= 0 && c_1 < GomokuBoard.BOARD_SIZE && board[r_1][c_1] == opponent &&
+                            r_2 >= 0 && r_2 < GomokuBoard.BOARD_SIZE && c_2 >= 0 && c_2 < GomokuBoard.BOARD_SIZE && board[r_2][c_2] == opponent &&
+                            r1 >= 0 && r1 < GomokuBoard.BOARD_SIZE && c1 >= 0 && c1 < GomokuBoard.BOARD_SIZE && board[r1][c1] == GomokuBoard.EMPTY &&
+                            r2 >= 0 && r2 < GomokuBoard.BOARD_SIZE && c2 >= 0 && c2 < GomokuBoard.BOARD_SIZE && board[r2][c2] == opponent) {
+                            // 检查 r1 空位后面是否还有空间
+                            if (r3 >= 0 && r3 < GomokuBoard.BOARD_SIZE && c3 >= 0 && c3 < GomokuBoard.BOARD_SIZE && board[r3][c3] == GomokuBoard.EMPTY) {
+                                jumpThreeCount++;
+                            }
+                            // 检查 r_2 左边是否还有空间
+                            int r_3 = i - 3 * dir[0], c_3 = j - 3 * dir[1];
+                            if (r_3 >= 0 && r_3 < GomokuBoard.BOARD_SIZE && c_3 >= 0 && c_3 < GomokuBoard.BOARD_SIZE && board[r_3][c_3] == GomokuBoard.EMPTY) {
+                                jumpThreeCount++;
+                            }
+                        }
                     }
 
                     board[i][j] = GomokuBoard.EMPTY;
 
                     // 检测各种组合威胁（按优先级）：
-                    // 1. 双活三（必防）
+                    // 1. 五连（已在上方处理）
+                    
+                    // 2. 双活三（必防）
                     if (liveThreeCount >= 2) {
                         return new int[]{i, j};
                     }
-                    // 2. 四三组合（冲四 + 活三）
-                    if (rushFourCount >= 1 && liveThreeCount >= 1) {
+                    // 3. 四三组合（冲四 + 活三，包括跳跃四）
+                    if ((rushFourCount >= 1 || jumpFourCount >= 1) && liveThreeCount >= 1) {
                         return new int[]{i, j};
                     }
-                    // 3. 活三 + 眠三组合（必防）
+                    // 4. 双冲四（包括跳跃四）
+                    if (rushFourCount + jumpFourCount >= 2) {
+                        return new int[]{i, j};
+                    }
+                    // 5. 冲四 + 眠三
+                    if ((rushFourCount >= 1 || jumpFourCount >= 1) && sleepThreeCount >= 1) {
+                        return new int[]{i, j};
+                    }
+                    // 6. 活三 + 眠三组合（必防）
                     if (liveThreeCount >= 1 && sleepThreeCount >= 1) {
                         return new int[]{i, j};
                     }
-                    // 4. 双眠三（较弱威胁）
-                    // if (sleepThreeCount >= 2) { return new int[]{i, j}; }
+                    // 7. 跳跃三 + 眠三组合
+                    if (jumpThreeCount >= 1 && sleepThreeCount >= 1) {
+                        return new int[]{i, j};
+                    }
+                    // 8. 双跳跃三
+                    if (jumpThreeCount >= 2) {
+                        return new int[]{i, j};
+                    }
                 }
             }
         }

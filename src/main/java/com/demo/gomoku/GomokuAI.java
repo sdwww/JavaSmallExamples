@@ -474,7 +474,17 @@ public class GomokuAI {
     /**
      * 简单模式AI - 增强防守意识
      */
+    /**
+     * 简单模式AI - 增强版
+     * 改进：防守时优先选择既能防守又能进攻的位置
+     */
     private int[] calculateEasyMove(int[][] board) {
+        // 优先检查攻防兼备的机会
+        int[] dualMove = findDualPurposeMove(board, GomokuBoard.WHITE);
+        if (dualMove != null) {
+            return dualMove;
+        }
+        
         Map<String, Integer> scores = new HashMap<>();
         int maxScore = Integer.MIN_VALUE;
         int center = GomokuBoard.BOARD_SIZE / 2;
@@ -493,6 +503,11 @@ public class GomokuAI {
             // 关键棋型额外加分（防守优先）
             int defenseBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.BLACK);
             int attackBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.WHITE);
+            
+            // 攻防兼备奖励
+            if (attackBonus > 0 && defenseBonus > 0) {
+                totalScore += (attackBonus + defenseBonus) * 0.5;
+            }
             
             // 防守奖励权重更高
             totalScore += defenseBonus * 2;  // 防守奖励翻倍
@@ -521,8 +536,15 @@ public class GomokuAI {
     
     /**
      * 中等模式AI - 平衡攻防
+     * 改进：优先选择既能防守又能进攻的位置
      */
     private int[] calculateMediumMove(int[][] board) {
+        // 优先检查攻防兼备的机会
+        int[] dualMove = findDualPurposeMove(board, GomokuBoard.WHITE);
+        if (dualMove != null) {
+            return dualMove;
+        }
+        
         Map<String, Integer> scores = new HashMap<>();
         int maxScore = Integer.MIN_VALUE;
         int center = GomokuBoard.BOARD_SIZE / 2;
@@ -540,6 +562,11 @@ public class GomokuAI {
             // 关键棋型评估
             int defenseBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.BLACK);
             int attackBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.WHITE);
+            
+            // 攻防兼备奖励
+            if (attackBonus > 0 && defenseBonus > 0) {
+                totalScore += (attackBonus + defenseBonus) * 0.5;
+            }
             
             totalScore += defenseBonus * 1.5;
             totalScore += attackBonus * 1.2;
@@ -580,6 +607,124 @@ public class GomokuAI {
         }
         board[row][col] = GomokuBoard.EMPTY;
         return bonus;
+    }
+    
+    /**
+     * 查找既能防守又能进攻的位置（攻防兼备）
+     * 策略：评估每个候选位置同时具备的进攻价值和防守价值
+     */
+    private int[] findDualPurposeMove(int[][] board, int aiPlayer) {
+        int opponent = (aiPlayer == GomokuBoard.WHITE) ? GomokuBoard.BLACK : GomokuBoard.WHITE;
+        
+        // 获取所有候选位置
+        List<int[]> candidates = threatDetector.getCandidateMoves(board, 2, false, 30);
+        if (candidates.isEmpty()) return null;
+        
+        int[] bestDualMove = null;
+        int bestDualScore = -1;  // 综合评分
+        
+        for (int[] move : candidates) {
+            // 检查落子后是否能形成进攻棋型
+            int attackValue = evaluateAttackValue(board, move[0], move[1], aiPlayer);
+            
+            // 检查落子后是否能防守对手威胁
+            int defenseValue = evaluateDefenseValue(board, move[0], move[1], opponent);
+            
+            // 计算攻防兼备的综合评分
+            // 如果既有进攻价值又有防守价值，给予额外奖励
+            int dualScore = attackValue + defenseValue;
+            if (attackValue > 0 && defenseValue > 0) {
+                dualScore += Math.min(attackValue, defenseValue) * 2; // 攻防兼备额外奖励
+            }
+            
+            // 优先选择攻防兼备的位置
+            if (dualScore > bestDualScore) {
+                bestDualScore = dualScore;
+                bestDualMove = move;
+            }
+        }
+        
+        // 只有当攻防兼备的价值超过阈值时才返回
+        if (bestDualScore > 50000) {  // 阈值：活三级别的价值
+            return bestDualMove;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * 评估落子位置的进攻价值
+     */
+    private int evaluateAttackValue(int[][] board, int row, int col, int player) {
+        int value = 0;
+        board[row][col] = player;
+        
+        for (int[] dir : GomokuBoard.DIRECTIONS) {
+            int[] pattern = evaluator.analyzeLine(board, row, col, player, dir[0], dir[1]);
+            int lineScore = evaluator.getLineScore(pattern);
+            
+            // 活四/冲四：最高价值
+            if (lineScore >= PatternEvaluator.SCORE_FOUR) {
+                value += 5000000;
+            }
+            // 跳跃四/眠四
+            else if (lineScore >= PatternEvaluator.SCORE_RUSH_FOUR) {
+                value += 1000000;
+            }
+            // 活三
+            else if (lineScore >= PatternEvaluator.SCORE_LIVE_THREE) {
+                value += 500000;
+            }
+            // 眠三
+            else if (lineScore >= PatternEvaluator.SCORE_SLEEP_THREE) {
+                value += 30000;
+            }
+            // 活二
+            else if (lineScore >= PatternEvaluator.SCORE_LIVE_TWO) {
+                value += 10000;
+            }
+        }
+        
+        board[row][col] = GomokuBoard.EMPTY;
+        return value;
+    }
+    
+    /**
+     * 评估落子位置的防守价值
+     * 检查落子后能否阻挡对手的关键棋型
+     */
+    private int evaluateDefenseValue(int[][] board, int row, int col, int opponent) {
+        int value = 0;
+        board[row][col] = opponent;
+        
+        for (int[] dir : GomokuBoard.DIRECTIONS) {
+            int[] pattern = evaluator.analyzeLine(board, row, col, opponent, dir[0], dir[1]);
+            int lineScore = evaluator.getLineScore(pattern);
+            
+            // 阻挡对手五连
+            if (lineScore >= PatternEvaluator.SCORE_FIVE) {
+                value += 5000000;
+            }
+            // 阻挡对手活四或冲四
+            else if (lineScore >= PatternEvaluator.SCORE_FOUR) {
+                value += 2000000;
+            }
+            // 阻挡对手跳跃四
+            else if (lineScore >= PatternEvaluator.SCORE_RUSH_FOUR) {
+                value += 1000000;
+            }
+            // 阻挡对手活三
+            else if (lineScore >= PatternEvaluator.SCORE_LIVE_THREE) {
+                value += 500000;
+            }
+            // 阻挡对手眠三
+            else if (lineScore >= PatternEvaluator.SCORE_SLEEP_THREE) {
+                value += 30000;
+            }
+        }
+        
+        board[row][col] = GomokuBoard.EMPTY;
+        return value;
     }
 
     // ===== 快速胜负检测 O(20) =====

@@ -200,22 +200,21 @@ public class ThreatDetector {
     }
 
     /**
-     * 查找棋盘上已有的三连（包括活三和眠三）
-     * 这是真正的威胁检测 - 增强版：优先检测活三
+     * 查找棋盘上已有的三连（包括活三、眠三和跳跃三连）
+     * 增强版：优先检测并防守活三
      */
     public int[] findExistingThree(int[][] board, int player) {
         int n = GomokuBoard.BOARD_SIZE;
         int[] bestDefensePos = null;
-        int bestThreatLevel = 0; // 0=无威胁, 1=眠三, 2=活三
+        int bestThreatLevel = 0; // 0=无威胁, 1=眠三, 2=活三, 3=跳跃三连
         
+        // 1. 先检测连续三连（OOO）
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 if (board[i][j] == player) {
-                    // 检查四个方向
                     for (int[] dir : GomokuBoard.DIRECTIONS) {
                         int count = 1;
                         int openEnds = 0;
-                        int emptyEnd1 = -1, emptyEnd2 = -1; // 记录开放端位置
                         int emptyEnd1Row = -1, emptyEnd1Col = -1;
                         int emptyEnd2Row = -1, emptyEnd2Col = -1;
                         
@@ -228,7 +227,8 @@ public class ThreatDetector {
                         }
                         if (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == GomokuBoard.EMPTY) {
                             openEnds++;
-                            emptyEnd1Row = r; emptyEnd1Col = c;
+                            emptyEnd1Row = r; 
+                            emptyEnd1Col = c;
                         }
                         
                         // 反方向计数
@@ -242,48 +242,93 @@ public class ThreatDetector {
                         if (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == GomokuBoard.EMPTY) {
                             openEnds++;
                             if (emptyEnd1Row == -1) {
-                                emptyEnd1Row = r; emptyEnd1Col = c;
+                                emptyEnd1Row = r; 
+                                emptyEnd1Col = c;
                             } else {
-                                emptyEnd2Row = r; emptyEnd2Col = c;
+                                emptyEnd2Row = r; 
+                                emptyEnd2Col = c;
                             }
                         }
                         
-                        // 找到三连
-                        if (count == 3) {
-                            // 活三：至少一端开放，必须防守
-                            if (openEnds >= 1) {
-                                // 优先返回活三的防守位置
-                                if (emptyEnd1Row >= 0 && bestThreatLevel < 2) {
-                                    bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
-                                    bestThreatLevel = 2;
-                                }
-                                // 如果两端都开放（活三），优先防守一端
-                                if (openEnds == 2 && emptyEnd2Row >= 0 && bestThreatLevel == 2) {
-                                    // 活三两端都开放，选择防守位置（考虑阻挡对手连接）
-                                    bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
-                                }
+                        // 找到连续三连（count == 3）
+                        if (count == 3 && openEnds >= 1) {
+                            // 找到活三或眠三，优先防守活三
+                            int[] defensePos = null;
+                            if (openEnds == 2) {
+                                // 活三：两端都开放，防守任意一端
+                                defensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
+                            } else if (openEnds == 1) {
+                                // 眠三：一端开放，返回开放端位置
+                                defensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
                             }
-                            // 眠三：一端开放但另一端被堵（也是一种威胁）
-                            else if (openEnds == 1 && bestThreatLevel == 0) {
-                                if (emptyEnd1Row >= 0) {
-                                    bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
-                                    bestThreatLevel = 1;
+                            
+                            if (defensePos != null) {
+                                if (openEnds == 2 && bestThreatLevel < 2) {
+                                    bestDefensePos = defensePos;
+                                    bestThreatLevel = 2; // 活三
+                                } else if (openEnds == 1 && bestThreatLevel < 1) {
+                                    bestDefensePos = defensePos;
+                                    bestThreatLevel = 1; // 眠三
                                 }
                             }
                         }
                         
-                        // 也检查四连（被堵一端）- 跳跃四的变种
+                        // 检测四连（被堵一端）- 冲四
                         if (count == 4 && openEnds == 1) {
-                            if (emptyEnd1Row >= 0 && bestThreatLevel < 3) {
+                            if (emptyEnd1Row >= 0 && bestThreatLevel < 4) {
                                 bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
-                                bestThreatLevel = 3; // 四连威胁最高
+                                bestThreatLevel = 4; // 冲四
                             }
                         }
                     }
                 }
             }
         }
+        
+        // 2. 再检测跳跃三连（如 O_OO, OO_O, O_OO_ 等）
+        int[] jumpThree = findJumpThree(board, player);
+        if (jumpThree != null && bestThreatLevel < 3) {
+            return jumpThree; // 跳跃三连是较高威胁
+        }
+        
         return bestDefensePos;
+    }
+    
+    /**
+     * 查找跳跃三连（如 O_OO, OO_O 等）
+     * 这是一种间接三连威胁
+     */
+    private int[] findJumpThree(int[][] board, int player) {
+        int n = GomokuBoard.BOARD_SIZE;
+        
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (board[i][j] == player) {
+                    for (int[] dir : GomokuBoard.DIRECTIONS) {
+                        // 检查模式：棋子 + 空位 + 棋子 + 棋子 (O_OO)
+                        // 或：棋子 + 棋子 + 空位 + 棋子 (OO_O)
+                        
+                        int r1 = i + dir[0], c1 = j + dir[1];
+                        int r2 = i + 2 * dir[0], c2 = j + 2 * dir[1];
+                        int r3 = i + 3 * dir[0], c3 = j + 3 * dir[1];
+                        
+                        // 模式1: O_OO (当前位置是棋子，后面是空位+两棋子)
+                        if (r1 >= 0 && r1 < n && c1 >= 0 && c1 < n && 
+                            board[r1][c1] == GomokuBoard.EMPTY &&
+                            r2 >= 0 && r2 < n && c2 >= 0 && c2 < n && board[r2][c2] == player &&
+                            r3 >= 0 && r3 < n && c3 >= 0 && c3 < n && board[r3][c3] == player) {
+                            // 找到一个跳跃三连，空位在r1,c1
+                            // 检查空位是否可落子（边界检查）
+                            return new int[]{r1, c1};
+                        }
+                        
+                        // 模式2: O_O_O (当前位置+空位+棋子+空位+棋子) - 更远的跳跃
+                        // 这个模式威胁较小，暂不处理
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -344,7 +389,7 @@ public class ThreatDetector {
     }
 
     /**
-     * 检测双活三/四三组合
+     * 检测双活三/四三/活三+眠三组合
      */
     public int[] findComboThreat(int[][] board, int opponent) {
         for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
@@ -352,8 +397,9 @@ public class ThreatDetector {
                 if (board[i][j] == GomokuBoard.EMPTY) {
                     board[i][j] = opponent;
 
-                    int liveThreeCount = 0;
-                    int rushFourCount = 0;
+                    int liveThreeCount = 0;      // 活三数量（两端开放）
+                    int sleepThreeCount = 0;      // 眠三数量（一端开放）
+                    int rushFourCount = 0;        // 冲四数量
 
                     for (int[] dir : GomokuBoard.DIRECTIONS) {
                         int count = 1;
@@ -365,8 +411,10 @@ public class ThreatDetector {
                             r += dir[0];
                             c += dir[1];
                         }
+                        boolean end1Empty = false;
                         if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
                             emptyEnds++;
+                            end1Empty = true;
                         }
 
                         r = i - dir[0];
@@ -376,20 +424,46 @@ public class ThreatDetector {
                             r -= dir[0];
                             c -= dir[1];
                         }
+                        boolean end2Empty = false;
                         if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
                             emptyEnds++;
+                            end2Empty = true;
                         }
 
-                        if (count >= 4 && emptyEnds >= 1) rushFourCount++;
-                        if (count == 3 && emptyEnds == 2) liveThreeCount++;
+                        if (count >= 5) {
+                            // 五连或更多，立即返回
+                            board[i][j] = GomokuBoard.EMPTY;
+                            return new int[]{i, j};
+                        } else if (count == 4 && emptyEnds >= 1) {
+                            // 冲四
+                            rushFourCount++;
+                        } else if (count == 3) {
+                            // 三连
+                            if (emptyEnds == 2) {
+                                liveThreeCount++; // 活三
+                            } else if (emptyEnds == 1) {
+                                sleepThreeCount++; // 眠三
+                            }
+                        }
                     }
 
                     board[i][j] = GomokuBoard.EMPTY;
 
-                    // 双活三或四三组合
-                    if (liveThreeCount >= 2 || (rushFourCount >= 1 && liveThreeCount >= 1)) {
+                    // 检测各种组合威胁（按优先级）：
+                    // 1. 双活三（必防）
+                    if (liveThreeCount >= 2) {
                         return new int[]{i, j};
                     }
+                    // 2. 四三组合（冲四 + 活三）
+                    if (rushFourCount >= 1 && liveThreeCount >= 1) {
+                        return new int[]{i, j};
+                    }
+                    // 3. 活三 + 眠三组合（必防）
+                    if (liveThreeCount >= 1 && sleepThreeCount >= 1) {
+                        return new int[]{i, j};
+                    }
+                    // 4. 双眠三（较弱威胁）
+                    // if (sleepThreeCount >= 2) { return new int[]{i, j}; }
                 }
             }
         }

@@ -192,9 +192,29 @@ public class GomokuAI {
             return new int[]{GomokuBoard.BOARD_SIZE / 2, GomokuBoard.BOARD_SIZE / 2};
         }
 
-        // 必胜/必防/关键威胁（所有难度都必须检查）
+        // 必胜/必防/关键威胁（所有难度都必须检查，包括简单模式）
         int[] winMove = threatDetector.findImmediateWinOrBlock(board);
-        if (winMove != null) return winMove;
+        if (winMove != null) {
+            // 防守优先：当对手有威胁时，优先防守
+            if (difficulty != Difficulty.HARD) {
+                // 简单/中等模式：检查对手是否有一击必杀，有则必须防守
+                int[] opponentWin = threatDetector.findOneMoveWin(board, GomokuBoard.BLACK);
+                if (opponentWin != null) {
+                    return opponentWin;
+                }
+                // 检查对手的跳跃四连
+                int[] opponentJumpFour = threatDetector.findJumpFour(board, GomokuBoard.BLACK);
+                if (opponentJumpFour != null) {
+                    return opponentJumpFour;
+                }
+                // 检查对手的三连威胁
+                int[] opponentThree = threatDetector.findExistingThree(board, GomokuBoard.BLACK);
+                if (opponentThree != null) {
+                    return opponentThree;
+                }
+            }
+            return winMove;
+        }
 
         // 困难模式：极大极小 + Alpha-Beta + 置换表 + 迭代加深
         if (difficulty == Difficulty.HARD) {
@@ -203,11 +223,11 @@ public class GomokuAI {
 
         // 中等模式：浅层搜索 + 评估
         if (difficulty == Difficulty.MEDIUM) {
-            return calculateMediumMove(board, candidates);
+            return calculateMediumMove(board);
         }
 
         // 简单模式
-        return calculateEasyMove(board, candidates);
+        return calculateEasyMove(board);
     }
 
     /**
@@ -452,92 +472,89 @@ public class GomokuAI {
     }
 
     /**
-     * 中等难度 - 浅层迭代加深搜索
+     * 简单模式AI - 增强防守意识
      */
-    private int[] calculateMediumMove(int[][] board, List<int[]> candidates) {
-        int[] bestMove = candidates.get(0);
-        int bestScore = Integer.MIN_VALUE;
-
-        int[][] searchBoard = copyBoard(board);
-        long hash = computeHash(board);
-        long startTime = System.currentTimeMillis();
-
-        // 清空杀手启发
-        for (int i = 0; i <= MAX_DEPTH; i++) {
-            killerMoves[i][0] = -1;
-            killerMoves[i][1] = -1;
-        }
-
-        int limit = Math.min(candidates.size(), 30);
-        List<int[]> searchCandidates = candidates.subList(0, limit);
-
-        for (int depth = 1; depth <= MEDIUM_MAX_DEPTH; depth++) {
-            long remainingTime = MEDIUM_MAX_TIME_MS - (System.currentTimeMillis() - startTime);
-            if (remainingTime < 100) break;
-
-            int currentBestScore = Integer.MIN_VALUE;
-            int[] currentBestMove = bestMove;
-
-            for (int[] move : searchCandidates) {
-                searchBoard[move[0]][move[1]] = GomokuBoard.WHITE;
-                long newHash = hash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
-
-                if (checkWinAt(searchBoard, move[0], move[1], GomokuBoard.WHITE)) {
-                    searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
-                    return move;
-                }
-
-                int score = minmax(searchBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
-                searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
-
-                if (score > currentBestScore) {
-                    currentBestScore = score;
-                    currentBestMove = move;
-                }
-
-                if (System.currentTimeMillis() - startTime > MEDIUM_MAX_TIME_MS * 0.8) break;
-            }
-
-            bestMove = currentBestMove;
-            bestScore = currentBestScore;
-
-            if (Math.abs(bestScore) >= PatternEvaluator.SCORE_FIVE) break;
-        }
-
-        return bestMove;
-    }
-
-    /**
-     * 简单模式AI
-     */
-    private int[] calculateEasyMove(int[][] board, List<int[]> candidates) {
+    private int[] calculateEasyMove(int[][] board) {
         Map<String, Integer> scores = new HashMap<>();
         int maxScore = Integer.MIN_VALUE;
         int center = GomokuBoard.BOARD_SIZE / 2;
-
+        
+        // 增强版：使用更大的搜索范围
+        List<int[]> candidates = threatDetector.getCandidateMoves(board, 3, true, 50);
+        
         for (int[] move : candidates) {
             int attackScore = evaluator.evaluatePosition(board, move[0], move[1], GomokuBoard.WHITE);
             int defenseScore = evaluator.evaluatePosition(board, move[0], move[1], GomokuBoard.BLACK);
-
+            
+            // 大幅提高防守权重：简单模式也要认真防守
             double defenseWeight = difficulty.getDefenseWeight();
             int totalScore = attackScore + (int) (defenseScore * defenseWeight);
-
-            // 关键棋型额外加分
-            int criticalBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.BLACK);
-            totalScore += criticalBonus;
-
+            
+            // 关键棋型额外加分（防守优先）
+            int defenseBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.BLACK);
+            int attackBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.WHITE);
+            
+            // 防守奖励权重更高
+            totalScore += defenseBonus * 2;  // 防守奖励翻倍
+            totalScore += attackBonus;
+            
+            // 距离中心的惩罚（简单模式不希望走太远）
             int dist = Math.abs(move[0] - center) + Math.abs(move[1] - center);
-            totalScore += Math.max(0, 10 - dist);
+            totalScore += Math.max(0, 15 - dist);
+            
+            scores.put(move[0] + "," + move[1], totalScore);
+            maxScore = Math.max(maxScore, totalScore);
+        }
 
+        // 选择最高分的落子，不再随机
+        List<int[]> bestMoves = new ArrayList<>();
+        for (int[] move : candidates) {
+            int score = scores.get(move[0] + "," + move[1]);
+            if (score >= maxScore * 0.9) {  // 只选择接近最高分的
+                bestMoves.add(move);
+            }
+        }
+
+        // 返回最佳落子（优先选择防守位置）
+        return bestMoves.get(ThreadLocalRandom.current().nextInt(bestMoves.size()));
+    }
+    
+    /**
+     * 中等模式AI - 平衡攻防
+     */
+    private int[] calculateMediumMove(int[][] board) {
+        Map<String, Integer> scores = new HashMap<>();
+        int maxScore = Integer.MIN_VALUE;
+        int center = GomokuBoard.BOARD_SIZE / 2;
+        
+        // 中等难度使用更大的候选集
+        List<int[]> mediumCandidates = threatDetector.getCandidateMoves(board, 2, true, 25);
+        
+        for (int[] move : mediumCandidates) {
+            int attackScore = evaluator.evaluatePosition(board, move[0], move[1], GomokuBoard.WHITE);
+            int defenseScore = evaluator.evaluatePosition(board, move[0], move[1], GomokuBoard.BLACK);
+            
+            double defenseWeight = difficulty.getDefenseWeight();
+            int totalScore = attackScore + (int) (defenseScore * defenseWeight);
+            
+            // 关键棋型评估
+            int defenseBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.BLACK);
+            int attackBonus = evaluateCriticalBonus(board, move[0], move[1], GomokuBoard.WHITE);
+            
+            totalScore += defenseBonus * 1.5;
+            totalScore += attackBonus * 1.2;
+            
+            int dist = Math.abs(move[0] - center) + Math.abs(move[1] - center);
+            totalScore += Math.max(0, 12 - dist);
+            
             scores.put(move[0] + "," + move[1], totalScore);
             maxScore = Math.max(maxScore, totalScore);
         }
 
         List<int[]> bestMoves = new ArrayList<>();
-        double threshold = difficulty == Difficulty.EASY ? 0.5 : 0.8;
-        for (int[] move : candidates) {
+        for (int[] move : mediumCandidates) {
             int score = scores.get(move[0] + "," + move[1]);
-            if (score >= maxScore * threshold) {
+            if (score >= maxScore * 0.85) {
                 bestMoves.add(move);
             }
         }

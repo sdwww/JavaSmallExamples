@@ -201,10 +201,13 @@ public class ThreatDetector {
 
     /**
      * 查找棋盘上已有的三连（包括活三和眠三）
-     * 这是真正的威胁检测
+     * 这是真正的威胁检测 - 增强版：优先检测活三
      */
     public int[] findExistingThree(int[][] board, int player) {
         int n = GomokuBoard.BOARD_SIZE;
+        int[] bestDefensePos = null;
+        int bestThreatLevel = 0; // 0=无威胁, 1=眠三, 2=活三
+        
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < n; j++) {
                 if (board[i][j] == player) {
@@ -212,7 +215,9 @@ public class ThreatDetector {
                     for (int[] dir : GomokuBoard.DIRECTIONS) {
                         int count = 1;
                         int openEnds = 0;
-                        int blockedEnds = 0;
+                        int emptyEnd1 = -1, emptyEnd2 = -1; // 记录开放端位置
+                        int emptyEnd1Row = -1, emptyEnd1Col = -1;
+                        int emptyEnd2Row = -1, emptyEnd2Col = -1;
                         
                         // 正方向计数
                         int r = i + dir[0], c = j + dir[1];
@@ -223,8 +228,7 @@ public class ThreatDetector {
                         }
                         if (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == GomokuBoard.EMPTY) {
                             openEnds++;
-                        } else if (r >= 0 && r < n && c >= 0 && c < n) {
-                            blockedEnds++;
+                            emptyEnd1Row = r; emptyEnd1Col = c;
                         }
                         
                         // 反方向计数
@@ -237,44 +241,49 @@ public class ThreatDetector {
                         }
                         if (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == GomokuBoard.EMPTY) {
                             openEnds++;
-                        } else if (r >= 0 && r < n && c >= 0 && c < n) {
-                            blockedEnds++;
+                            if (emptyEnd1Row == -1) {
+                                emptyEnd1Row = r; emptyEnd1Col = c;
+                            } else {
+                                emptyEnd2Row = r; emptyEnd2Col = c;
+                            }
                         }
                         
                         // 找到三连
                         if (count == 3) {
-                            // 找到活三或眠三的防守位置
-                            // 活三：至少一端开放
+                            // 活三：至少一端开放，必须防守
                             if (openEnds >= 1) {
-                                // 返回开放端的位置
-                                r = i + dir[0];
-                                c = j + dir[1];
-                                int r2 = i - dir[0];
-                                int c2 = j - dir[1];
-                                
-                                // 找开放的那一端
-                                while (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == player) {
-                                    r += dir[0];
-                                    c += dir[1];
+                                // 优先返回活三的防守位置
+                                if (emptyEnd1Row >= 0 && bestThreatLevel < 2) {
+                                    bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
+                                    bestThreatLevel = 2;
                                 }
-                                if (r >= 0 && r < n && c >= 0 && c < n && board[r][c] == GomokuBoard.EMPTY) {
-                                    return new int[]{r, c};
+                                // 如果两端都开放（活三），优先防守一端
+                                if (openEnds == 2 && emptyEnd2Row >= 0 && bestThreatLevel == 2) {
+                                    // 活三两端都开放，选择防守位置（考虑阻挡对手连接）
+                                    bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
                                 }
-                                
-                                while (r2 >= 0 && r2 < n && c2 >= 0 && c2 < n && board[r2][c2] == player) {
-                                    r2 -= dir[0];
-                                    c2 -= dir[1];
+                            }
+                            // 眠三：一端开放但另一端被堵（也是一种威胁）
+                            else if (openEnds == 1 && bestThreatLevel == 0) {
+                                if (emptyEnd1Row >= 0) {
+                                    bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
+                                    bestThreatLevel = 1;
                                 }
-                                if (r2 >= 0 && r2 < n && c2 >= 0 && c2 < n && board[r2][c2] == GomokuBoard.EMPTY) {
-                                    return new int[]{r2, c2};
-                                }
+                            }
+                        }
+                        
+                        // 也检查四连（被堵一端）- 跳跃四的变种
+                        if (count == 4 && openEnds == 1) {
+                            if (emptyEnd1Row >= 0 && bestThreatLevel < 3) {
+                                bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
+                                bestThreatLevel = 3; // 四连威胁最高
                             }
                         }
                     }
                 }
             }
         }
-        return null;
+        return bestDefensePos;
     }
 
     /**

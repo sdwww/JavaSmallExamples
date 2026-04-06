@@ -430,6 +430,93 @@ public class ThreatDetector {
     }
 
     /**
+     * 查找AI的必胜机会
+     * 如果AI落子后能形成必胜组合（如双活三、四三等），直接返回该位置
+     */
+    public int[] findAIWinOpportunity(int[][] board, int player) {
+        // 先检查AI能否一步获胜
+        int[] immediateWin = findOneMoveWin(board, player);
+        if (immediateWin != null) {
+            return immediateWin;
+        }
+        
+        // 检查AI的组合必胜机会
+        return findComboWinOpportunity(board, player);
+    }
+    
+    /**
+     * 查找AI的组合必胜机会（双活三、四三等）
+     */
+    private int[] findComboWinOpportunity(int[][] board, int player) {
+        for (int i = 0; i < GomokuBoard.BOARD_SIZE; i++) {
+            for (int j = 0; j < GomokuBoard.BOARD_SIZE; j++) {
+                if (board[i][j] == GomokuBoard.EMPTY) {
+                    // 检查落子后能否形成必胜组合
+                    board[i][j] = player;
+                    
+                    int liveThreeCount = 0;      // 活三数量
+                    int rushFourCount = 0;        // 冲四数量
+                    int jumpFourCount = 0;         // 跳跃四数量
+                    
+                    for (int[] dir : GomokuBoard.DIRECTIONS) {
+                        // 检测连续四连
+                        int count = 1;
+                        int emptyEnds = 0;
+                        
+                        int r = i + dir[0], c = j + dir[1];
+                        while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
+                            count++;
+                            r += dir[0];
+                            c += dir[1];
+                        }
+                        if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
+                            emptyEnds++;
+                        }
+                        
+                        r = i - dir[0];
+                        c = j - dir[1];
+                        while (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == player) {
+                            count++;
+                            r -= dir[0];
+                            c -= dir[1];
+                        }
+                        if (r >= 0 && r < GomokuBoard.BOARD_SIZE && c >= 0 && c < GomokuBoard.BOARD_SIZE && board[r][c] == GomokuBoard.EMPTY) {
+                            emptyEnds++;
+                        }
+                        
+                        if (count == 4 && emptyEnds >= 1) {
+                            rushFourCount++;
+                        }
+                        
+                        // 检测跳跃四
+                        int r1 = i + dir[0], c1 = j + dir[1];
+                        int r2 = i + 2 * dir[0], c2 = j + 2 * dir[1];
+                        int r3 = i + 3 * dir[0], c3 = j + 3 * dir[1];
+                        int r4 = i + 4 * dir[0], c4 = j + 4 * dir[1];
+                        
+                        // O_OOO 模式
+                        if (r1 >= 0 && r1 < GomokuBoard.BOARD_SIZE && c1 >= 0 && c1 < GomokuBoard.BOARD_SIZE && board[r1][c1] == player &&
+                            r2 >= 0 && r2 < GomokuBoard.BOARD_SIZE && c2 >= 0 && c2 < GomokuBoard.BOARD_SIZE && board[r2][c2] == GomokuBoard.EMPTY &&
+                            r3 >= 0 && r3 < GomokuBoard.BOARD_SIZE && c3 >= 0 && c3 < GomokuBoard.BOARD_SIZE && board[r3][c3] == player &&
+                            r4 >= 0 && r4 < GomokuBoard.BOARD_SIZE && c4 >= 0 && c4 < GomokuBoard.BOARD_SIZE && board[r4][c4] == player) {
+                            jumpFourCount++;
+                        }
+                    }
+                    
+                    board[i][j] = GomokuBoard.EMPTY;
+                    
+                    // 必胜组合判断
+                    // 1. 双冲四（含跳跃四）
+                    if (rushFourCount + jumpFourCount >= 2) {
+                        return new int[]{i, j};
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * 检测双活三/四三/活三+眠三组合（包括跳跃棋型）
      */
     public int[] findComboThreat(int[][] board, int opponent) {

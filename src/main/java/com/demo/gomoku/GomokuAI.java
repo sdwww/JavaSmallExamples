@@ -193,27 +193,37 @@ public class GomokuAI {
         }
 
         // 必胜/必防/关键威胁（所有难度都必须检查，包括简单模式）
-        int[] winMove = threatDetector.findImmediateWinOrBlock(board);
-        if (winMove != null) {
-            // 防守优先：当对手有威胁时，优先防守
-            if (difficulty != Difficulty.HARD) {
-                // 简单/中等模式：检查对手是否有一击必杀，有则必须防守
-                int[] opponentWin = threatDetector.findOneMoveWin(board, GomokuBoard.BLACK);
-                if (opponentWin != null) {
-                    return opponentWin;
-                }
-                // 检查对手的跳跃四连
-                int[] opponentJumpFour = threatDetector.findJumpFour(board, GomokuBoard.BLACK);
-                if (opponentJumpFour != null) {
-                    return opponentJumpFour;
-                }
-                // 检查对手的三连威胁
-                int[] opponentThree = threatDetector.findExistingThree(board, GomokuBoard.BLACK);
-                if (opponentThree != null) {
-                    return opponentThree;
-                }
-            }
-            return winMove;
+        
+        // ===== 优先级1：AI的必胜机会 =====
+        // 如果AI有必胜机会（如双活三、四三等），直接进攻，不需要防守
+        int[] aiWinMove = threatDetector.findAIWinOpportunity(board, GomokuBoard.WHITE);
+        if (aiWinMove != null) {
+            return aiWinMove;
+        }
+        
+        // ===== 优先级2：对手的必杀威胁 =====
+        // 检查对手是否有一击必杀
+        int[] opponentWin = threatDetector.findOneMoveWin(board, GomokuBoard.BLACK);
+        if (opponentWin != null) {
+            return opponentWin;
+        }
+        
+        // 检查对手的跳跃四连
+        int[] opponentJumpFour = threatDetector.findJumpFour(board, GomokuBoard.BLACK);
+        if (opponentJumpFour != null) {
+            return opponentJumpFour;
+        }
+        
+        // 检查对手的组合威胁（双活三、四三等）
+        int[] opponentCombo = threatDetector.findComboThreat(board, GomokuBoard.BLACK);
+        if (opponentCombo != null) {
+            return opponentCombo;
+        }
+        
+        // 检查对手的三连威胁
+        int[] opponentThree = threatDetector.findExistingThree(board, GomokuBoard.BLACK);
+        if (opponentThree != null) {
+            return opponentThree;
         }
 
         // 困难模式：极大极小 + Alpha-Beta + 置换表 + 迭代加深

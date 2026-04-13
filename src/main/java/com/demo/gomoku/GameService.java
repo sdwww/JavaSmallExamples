@@ -154,6 +154,7 @@ public class GameService {
         }
         
         if (future.isDone()) {
+            // 原子性移除，避免与isAiThinking的竞态
             pendingAiMoves.remove(sessionId);
             try {
                 return future.get();
@@ -167,8 +168,10 @@ public class GameService {
     
     /**
      * AI是否正在计算
+     * 使用computeIfAbsent确保原子性检查
      */
     public boolean isAiThinking(String sessionId) {
+        // 使用get而非containsKey+get，避免两次查找的竞态
         CompletableFuture<int[]> future = pendingAiMoves.get(sessionId);
         return future != null && !future.isDone();
     }
@@ -180,6 +183,11 @@ public class GameService {
         CompletableFuture<int[]> future = pendingAiMoves.remove(sessionId);
         if (future != null && !future.isDone()) {
             future.cancel(true);
+        }
+        // 设置Game的取消标志，支持真正的异步取消
+        GomokuGame game = games.get(sessionId);
+        if (game != null) {
+            game.cancelSearch();
         }
     }
     

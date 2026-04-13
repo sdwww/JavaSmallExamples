@@ -17,6 +17,9 @@ public class GomokuGame {
     private int winner;
     private Difficulty difficulty;
     
+    // AI计算取消标志（volatile，支持异步取消）
+    private volatile boolean searchCancelled = false;
+    
     // 落子历史记录 [row, col, player]
     private final List<int[]> moveHistory = new ArrayList<>();
     
@@ -86,7 +89,14 @@ public class GomokuGame {
             return null;
         }
         
+        // 设置AI的game引用，以便支持取消检查
+        ai.setGame(this);
+        searchCancelled = false; // 重置取消标志
+        
         int[] move = ai.calculateMove(board.getBoard());
+        
+        // 计算完成后清空引用
+        ai.clearGame();
         
         if (move != null) {
             makeMove(move[0], move[1], GomokuBoard.WHITE);
@@ -110,6 +120,27 @@ public class GomokuGame {
         reset();
         this.difficulty = difficulty;
         this.ai.setDifficulty(difficulty);
+    }
+    
+    /**
+     * 检查AI计算是否被取消
+     */
+    public boolean isSearchCancelled() {
+        return searchCancelled;
+    }
+    
+    /**
+     * 重置取消标志
+     */
+    public void resetSearchCancelled() {
+        this.searchCancelled = false;
+    }
+    
+    /**
+     * 取消AI搜索
+     */
+    public void cancelSearch() {
+        this.searchCancelled = true;
     }
     
     public synchronized void reset(int level) {

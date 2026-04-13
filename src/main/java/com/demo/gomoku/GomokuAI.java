@@ -77,7 +77,10 @@ public class GomokuAI {
     private volatile int[] parallelBestMove = null;
     private volatile int parallelBestScore = Integer.MIN_VALUE;
     private volatile boolean searchCompleted = false;
-
+    
+    // 引用到 GameGame 以支持取消检查
+    private volatile GomokuGame game;
+    
     private volatile long searchStartTime = 0; // 搜索开始时间（用于minmax内部超时检查）
 
     public GomokuAI(Difficulty difficulty) {
@@ -88,6 +91,27 @@ public class GomokuAI {
 
     public void setDifficulty(Difficulty difficulty) {
         this.difficulty = difficulty;
+    }
+    
+    /**
+     * 设置Game引用（用于取消检查）
+     */
+    public void setGame(GomokuGame game) {
+        this.game = game;
+    }
+    
+    /**
+     * 清除Game引用
+     */
+    public void clearGame() {
+        this.game = null;
+    }
+    
+    /**
+     * 检查是否被取消
+     */
+    private boolean isSearchCancelled() {
+        return game != null && game.isSearchCancelled();
     }
 
     /**
@@ -111,7 +135,15 @@ public class GomokuAI {
      * 开局库 - 根据棋盘状态快速返回最佳开局
      */
     private int[] getOpeningMove(int[][] board, int moveCount) {
-        // AI第一步（作为白方，第二手）: 贴近黑子
+        int center = CENTER;
+        
+        // AI第一步（AI先手）: 下中心点
+        if (moveCount == 0) {
+            // AI先手时选择中心点，这是标准开局
+            return new int[]{center, center};
+        }
+        
+        // AI第二步（作为白方，第二手）: 贴近黑子
         if (moveCount == 1) {
             // 找到黑子位置
             int br = -1, bc = -1;
@@ -132,10 +164,50 @@ public class GomokuAI {
                     return new int[]{nr, nc};
                 }
             }
-            return new int[]{CENTER, CENTER};
+            return new int[]{center, center};
         }
         
-        // AI第二步（第四手）: 常见开局定式
+        // AI第三步（第三手）: 跟随定式
+        if (moveCount == 2) {
+            // 找到已有棋子
+            List<int[]> whites = new ArrayList<>();
+            List<int[]> blacks = new ArrayList<>();
+            for (int i = 0; i < BOARD_SIZE; i++) {
+                for (int j = 0; j < BOARD_SIZE; j++) {
+                    if (board[i][j] == GomokuBoard.WHITE) whites.add(new int[]{i, j});
+                    if (board[i][j] == GomokuBoard.BLACK) blacks.add(new int[]{i, j});
+                }
+            }
+            if (whites.size() == 1 && blacks.size() == 1) {
+                int[] w = whites.get(0);
+                int[] b = blacks.get(0);
+                // 黑子和白子的方向
+                int dirR = b[0] - w[0];
+                int dirC = b[1] - w[1];
+                
+                // 常见开局：跟随型 - 在白子另一侧放置
+                int nr = w[0] - dirR;
+                int nc = w[1] - dirC;
+                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] == GomokuBoard.EMPTY) {
+                    return new int[]{nr, nc};
+                }
+                
+                // 或者在白子附近选择一个位置
+                int[][] nearOffsets = {{0,1},{0,-1},{1,0},{-1,0},{1,1},{1,-1},{-1,1},{-1,-1}};
+                List<int[]> goodMoves = new ArrayList<>();
+                for (int[] off : nearOffsets) {
+                    int tr = w[0] + off[0], tc = w[1] + off[1];
+                    if (tr >= 0 && tr < BOARD_SIZE && tc >= 0 && tc < BOARD_SIZE && board[tr][tc] == GomokuBoard.EMPTY) {
+                        goodMoves.add(new int[]{tr, tc});
+                    }
+                }
+                if (!goodMoves.isEmpty()) {
+                    return goodMoves.get(ThreadLocalRandom.current().nextInt(goodMoves.size()));
+                }
+            }
+        }
+        
+        // AI第四步（第四手）: 常见开局定式
         if (moveCount == 3) {
             // 找到已有棋子
             List<int[]> whites = new ArrayList<>();
@@ -146,7 +218,7 @@ public class GomokuAI {
                     if (board[i][j] == GomokuBoard.BLACK) blacks.add(new int[]{i, j});
                 }
             }
-            if (whites.size() == 1 && blacks.size() == 2) {
+            if (whites.size() == 2 && blacks.size() == 2) {
                 int[] w = whites.get(0);
                 // 在白子附近的空位中选择一个形成潜在威胁的位置
                 int[][] nearOffsets = {{0,1},{0,-1},{1,0},{-1,0},{1,1},{1,-1},{-1,1},{-1,-1}};
@@ -170,6 +242,11 @@ public class GomokuAI {
      * AI落子（主入口）
      */
     public int[] calculateMove(int[][] board) {
+        // 检查是否被取消
+        if (isSearchCancelled()) {
+            return null;
+        }
+        
         int moveCount = countPieces(board);
 
         // 第一步下中间（黑方先手时，通常不会走到这里）
@@ -327,17 +404,20 @@ public class GomokuAI {
 
             parallelExecutor.submit(() -> {
                 int[][] threadBoard = copyBoard(baseBoard);
-                long threadHash = baseHash; // 同一起始哈希
+                // 正确：为每个线程维护独立的哈希状态
+                long threadHash = baseHash;
 
                 try {
                     int localBestScore = Integer.MIN_VALUE;
                     int[] localBestMove = null;
 
                     for (int i = startIdx; i < endIdx; i++) {
-                        if (searchCompleted) break;
+                        // 检查全局取消标志
+                        if (searchCompleted || isSearchCancelled()) break;
 
                         int[] move = candidates.get(i);
                         threadBoard[move[0]][move[1]] = GomokuBoard.WHITE;
+                        // 正确更新哈希值
                         long newHash = threadHash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
 
                         if (checkWinAt(threadBoard, move[0], move[1], GomokuBoard.WHITE)) {
@@ -349,6 +429,8 @@ public class GomokuAI {
 
                         int score = minmax(threadBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
                         threadBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
+                        // 更新线程本地哈希值，为下一个候选位置做准备
+                        threadHash = newHash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
 
                         if (score > localBestScore) {
                             localBestScore = score;
@@ -388,6 +470,11 @@ public class GomokuAI {
      * 极大极小搜索（Alpha-Beta + 置换表 + 快速胜负检测）
      */
     private int minmax(int[][] board, long hash, int depth, int alpha, int beta, boolean isMaximizing, int ply) {
+        // 取消检查
+        if (isSearchCancelled()) {
+            return evaluator.evaluateBoard(board);
+        }
+        
         // 置换表查找
         int ttScore = ttLookup(hash, depth, alpha, beta);
         if (ttScore != Integer.MIN_VALUE) return ttScore;
@@ -481,9 +568,6 @@ public class GomokuAI {
         return bestScore;
     }
 
-    /**
-     * 简单模式AI - 增强防守意识
-     */
     /**
      * 简单模式AI - 增强版
      * 改进：防守时优先选择既能防守又能进攻的位置
@@ -799,8 +883,33 @@ public class GomokuAI {
         ttLock.writeLock().lock();
         try {
             int idx = (int) (hash & TT_MASK);
-            // 深度优先替换策略
-            if (ttDepths[idx] <= depth) {
+            // 改进的替换策略：
+            // 1. 如果条目为空，直接存储
+            // 2. 如果新条目是精确分数，优先替换
+            // 3. 如果深度更深，优先替换
+            // 4. 如果是下界/上界分数且当前是精确分数，不替换
+            if (ttDepths[idx] == 0) {
+                // 空槽，直接存储
+                ttKeys[idx] = hash;
+                ttScores[idx] = score;
+                ttDepths[idx] = depth;
+                ttFlags[idx] = flag;
+            } else if (flag == 1) {
+                // 新条目是精确分数，优先存储
+                if (ttFlags[idx] != 1 || depth >= ttDepths[idx]) {
+                    ttKeys[idx] = hash;
+                    ttScores[idx] = score;
+                    ttDepths[idx] = depth;
+                    ttFlags[idx] = flag;
+                }
+            } else if (depth > ttDepths[idx]) {
+                // 新条目深度更深，可以替换非精确分数条目
+                ttKeys[idx] = hash;
+                ttScores[idx] = score;
+                ttDepths[idx] = depth;
+                ttFlags[idx] = flag;
+            } else if (ttFlags[idx] != 1 && depth >= ttDepths[idx]) {
+                // 当前条目也是非精确分数，深度相当或更深时替换
                 ttKeys[idx] = hash;
                 ttScores[idx] = score;
                 ttDepths[idx] = depth;

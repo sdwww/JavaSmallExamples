@@ -13,6 +13,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  * 3. 杀手启发优化搜索顺序
  * 4. 开局库 - 常见开局快速响应
  * 5. 中等难度增加搜索深度
+ * 6. Quiescence Search - 解决水平线效应
  */
 public class GomokuAI {
 
@@ -23,6 +24,10 @@ public class GomokuAI {
     private static final int MEDIUM_MAX_TIME_MS = 3000; // 中等难度时间限制
     private static final int HARD_CANDIDATE_LIMIT = 35; // 困难模式顶层候选数
     private static final int MINMAX_CANDIDATE_LIMIT = 18; // minmax内部每层候选数
+
+    // Quiescence Search 配置
+    private static final int QUIESCENCE_DEPTH = 8; // Quiescence 最大搜索深度
+    private static final int QUIESCENCE_MINIMAX_DEPTH = 12; // 结合 minmax 时的最大总深度
 
     // 并行搜索配置
     private static final int PARALLEL_THREAD_COUNT = Math.max(2, Runtime.getRuntime().availableProcessors() - 1);
@@ -414,6 +419,202 @@ public class GomokuAI {
     }
 
     /**
+     * Quiescence Search（静态搜索）- 解决水平线效应
+     * 只搜索"不稳定"的着法直到局面稳定
+     */
+    private int quiescenceSearch(int[][] board, long hash, int alpha, int beta, boolean isMaximizing, int depth) {
+        // 取消检查
+        if (isSearchCancelled()) {
+            return evaluator.evaluateBoard(board);
+        }
+
+        int standPat = evaluator.evaluateBoard(board);
+
+        if (isMaximizing) {
+            if (standPat > alpha) {
+                alpha = standPat;
+            }
+            if (alpha >= beta) {
+                return beta; // 剪枝
+            }
+        } else {
+            if (standPat < beta) {
+                beta = standPat;
+            }
+            if (alpha >= beta) {
+                return alpha; // 剪枝
+            }
+        }
+
+        if (depth <= 0) {
+            return isMaximizing ? alpha : beta;
+        }
+
+        // 获取需要继续搜索的"不稳定"着法
+        int currentPlayer = isMaximizing ? GomokuBoard.WHITE : GomokuBoard.BLACK;
+        List<int[]> quiMoves = getQuiescenceMoves(board, currentPlayer, isMaximizing);
+
+        if (quiMoves.isEmpty()) {
+            return isMaximizing ? alpha : beta;
+        }
+
+        // 按评估值排序，优先搜索好的着法
+        final int ply = 0; // Quiescence 内层 ply
+        quiMoves.sort((a, b) -> {
+            int scoreA = historyTable[a[0]][a[1]];
+            int scoreB = historyTable[b[0]][b[1]];
+            return scoreB - scoreA;
+        });
+
+        int limit = Math.min(quiMoves.size(), 16); // 限制 Quiescence 候选数
+
+        for (int i = 0; i < limit; i++) {
+            int[] move = quiMoves.get(i);
+
+            board[move[0]][move[1]] = currentPlayer;
+            long newHash = hash ^ getZobrist()[move[0]][move[1]][currentPlayer];
+
+            // 快速胜负检测
+            if (checkWinAt(board, move[0], move[1], currentPlayer)) {
+                board[move[0]][move[1]] = GomokuBoard.EMPTY;
+                int winScore = currentPlayer == GomokuBoard.WHITE
+                        ? (PatternEvaluator.SCORE_FIVE + depth)
+                        : (-PatternEvaluator.SCORE_FIVE - depth);
+                return winScore;
+            }
+
+            int eval = quiescenceSearch(board, newHash, alpha, beta, !isMaximizing, depth - 1);
+
+            board[move[0]][move[1]] = GomokuBoard.EMPTY;
+
+            if (isMaximizing) {
+                if (eval > alpha) {
+                    alpha = eval;
+                }
+                if (alpha >= beta) {
+                    // 记录好的着法到历史表
+                    historyTable[move[0]][move[1]] += depth * depth;
+                    break;
+                }
+            } else {
+                if (eval < beta) {
+                    beta = eval;
+                }
+                if (alpha >= beta) {
+                    historyTable[move[0]][move[1]] += depth * depth;
+                    break;
+                }
+            }
+        }
+
+        return isMaximizing ? alpha : beta;
+    }
+
+    /**
+     * 获取 Quiescence Search 需要的候选着法
+     * 只返回"不稳定"的着法：能形成威胁或吃子的位置
+     */
+    private List<int[]> getQuiescenceMoves(int[][] board, int player, boolean isAttacking) {
+        List<int[]> moves = new ArrayList<>();
+        int opponent = (player == GomokuBoard.WHITE) ? GomokuBoard.BLACK : GomokuBoard.WHITE;
+
+        // 获取威胁候选位置
+        List<int[]> candidates = threatDetector.getCandidateMoves(board, 2, false, 50);
+
+        for (int[] pos : candidates) {
+            int r = pos[0], c = pos[1];
+
+            // 检查落子后是否能形成威胁（四连及以上）
+            int threatLevel = getMoveThreatLevel(board, r, c, player);
+            if (threatLevel >= 3) { // 眠三及以上
+                moves.add(pos);
+                continue;
+            }
+
+            // 检查落子后是否能阻挡对手的威胁
+            int defenseLevel = getMoveThreatLevel(board, r, c, opponent);
+            if (defenseLevel >= 4) { // 冲四及以上必须防守
+                moves.add(pos);
+                continue;
+            }
+
+            // 检查是否形成跳跃威胁
+            if (isJumpThreat(board, r, c, player)) {
+                moves.add(pos);
+                continue;
+            }
+
+            // 检查是否形成活二（作为进攻扩展）
+            if (isAttacking && threatLevel >= 2) {
+                moves.add(pos);
+            }
+        }
+
+        return moves;
+    }
+
+    /**
+     * 评估落子的威胁等级
+     * @return 0=无威胁, 1=眠二, 2=活二, 3=眠三, 4=活三, 5=冲四/跳跃四, 6=五连
+     */
+    private int getMoveThreatLevel(int[][] board, int row, int col, int player) {
+        board[row][col] = player;
+
+        int maxLevel = 0;
+        for (int[] dir : GomokuBoard.DIRECTIONS) {
+            int[] pattern = evaluator.analyzeLine(board, row, col, player, dir[0], dir[1]);
+            int lineScore = evaluator.getLineScore(pattern);
+
+            int level = 0;
+            if (lineScore >= PatternEvaluator.SCORE_FIVE) level = 6;
+            else if (lineScore >= PatternEvaluator.SCORE_FOUR) level = 5;
+            else if (lineScore >= PatternEvaluator.SCORE_RUSH_FOUR) level = 5;
+            else if (lineScore >= PatternEvaluator.SCORE_LIVE_THREE) level = 4;
+            else if (lineScore >= PatternEvaluator.SCORE_SLEEP_THREE) level = 3;
+            else if (lineScore >= PatternEvaluator.SCORE_LIVE_TWO) level = 2;
+            else if (lineScore >= PatternEvaluator.SCORE_SLEEP_TWO) level = 1;
+
+            maxLevel = Math.max(maxLevel, level);
+        }
+
+        board[row][col] = GomokuBoard.EMPTY;
+        return maxLevel;
+    }
+
+    /**
+     * 检查是否形成跳跃威胁
+     */
+    private boolean isJumpThreat(int[][] board, int row, int col, int player) {
+        board[row][col] = player;
+
+        boolean isJump = false;
+        for (int[] dir : GomokuBoard.DIRECTIONS) {
+            // 检测 O_OOO 模式（跳跃四）
+            int r1 = row + dir[0], c1 = col + dir[1];
+            int r2 = row + 2 * dir[0], c2 = col + 2 * dir[1];
+            int r3 = row + 3 * dir[0], c3 = col + 3 * dir[1];
+            int r4 = row + 4 * dir[0], c4 = col + 4 * dir[1];
+
+            if (r1 >= 0 && r1 < GomokuBoard.BOARD_SIZE && c1 >= 0 && c1 < GomokuBoard.BOARD_SIZE &&
+                r2 >= 0 && r2 < GomokuBoard.BOARD_SIZE && c2 >= 0 && c2 < GomokuBoard.BOARD_SIZE &&
+                r3 >= 0 && r3 < GomokuBoard.BOARD_SIZE && c3 >= 0 && c3 < GomokuBoard.BOARD_SIZE &&
+                r4 >= 0 && r4 < GomokuBoard.BOARD_SIZE && c4 >= 0 && c4 < GomokuBoard.BOARD_SIZE) {
+
+                if (board[r1][c1] == GomokuBoard.EMPTY &&
+                    board[r2][c2] == player &&
+                    board[r3][c3] == player &&
+                    board[r4][c4] == player) {
+                    isJump = true;
+                    break;
+                }
+            }
+        }
+
+        board[row][col] = GomokuBoard.EMPTY;
+        return isJump;
+    }
+
+    /**
      * 并行极大极小搜索（支持 Aspiration Windows）
      */
     private int[] parallelMinmax(int[][] baseBoard, List<int[]> candidates, int depth, long startTime, int maxTime, long baseHash, int windowAlpha, int windowBeta) {
@@ -564,7 +765,8 @@ public class GomokuAI {
             if (depth > 1) {
                 eval = minmax(board, newHash, depth - 1, alpha, beta, !isMaximizing, ply + 1);
             } else {
-                eval = evaluator.evaluateBoard(board);
+                // depth == 1 时进入 Quiescence Search，避免水平线效应
+                eval = quiescenceSearch(board, hash, alpha, beta, isMaximizing, QUIESCENCE_DEPTH);
             }
 
             board[move[0]][move[1]] = GomokuBoard.EMPTY;

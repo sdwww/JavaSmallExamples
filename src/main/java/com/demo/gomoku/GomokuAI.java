@@ -69,6 +69,9 @@ public class GomokuAI {
     // ===== 杀手启发 =====
     private final int[][] killerMoves = new int[MAX_DEPTH + 1][2];
 
+    // ===== 历史启发 =====
+    private final int[][] historyTable = new int[BOARD_SIZE][BOARD_SIZE];
+
     private final PatternEvaluator evaluator;
     private final ThreatDetector threatDetector;
     private Difficulty difficulty;
@@ -125,6 +128,10 @@ public class GomokuAI {
         for (int i = 0; i <= MAX_DEPTH; i++) {
             killerMoves[i][0] = -1;
             killerMoves[i][1] = -1;
+        }
+        // 清空历史启发表
+        for (int i = 0; i < BOARD_SIZE; i++) {
+            Arrays.fill(historyTable[i], 0);
         }
     }
 
@@ -318,7 +325,7 @@ public class GomokuAI {
     }
 
     /**
-     * 困难模式 - 迭代加深 + 极大极小 + Alpha-Beta + 置换表
+     * 困难模式 - 迭代加深 + 极大极小 + Alpha-Beta + 置换表 + Aspiration Windows
      */
     private int[] calculateHardMove(int[][] board, List<int[]> candidates) {
         int[] bestMove = candidates.get(0);
@@ -331,11 +338,10 @@ public class GomokuAI {
         int maxTime = MAX_SEARCH_TIME_MS;
         int depth = 1;
 
-        // 清空杀手启发
-        for (int i = 0; i <= MAX_DEPTH; i++) {
-            killerMoves[i][0] = -1;
-            killerMoves[i][1] = -1;
-        }
+        // Aspiration Window 参数
+        int ASPIRATION_WINDOW = 30;
+        int windowAlpha = Integer.MIN_VALUE;
+        int windowBeta = Integer.MAX_VALUE;
 
         while (depth <= MAX_DEPTH) {
             long remainingTime = maxTime - (System.currentTimeMillis() - startTime);
@@ -348,8 +354,17 @@ public class GomokuAI {
             parallelBestScore = Integer.MIN_VALUE;
             searchCompleted = false;
 
+            // Aspiration Windows：第一层使用全窗口，后续层使用前一层评估值作为窗口
+            if (depth > 1 && Math.abs(bestScore) < PatternEvaluator.SCORE_FIVE) {
+                windowAlpha = bestScore - ASPIRATION_WINDOW;
+                windowBeta = bestScore + ASPIRATION_WINDOW;
+            } else {
+                windowAlpha = Integer.MIN_VALUE;
+                windowBeta = Integer.MAX_VALUE;
+            }
+
             if (depth >= 3 && PARALLEL_THREAD_COUNT > 1) {
-                int[] result = parallelMinmax(searchBoard, searchCandidates, depth, startTime, maxTime, hash);
+                int[] result = parallelMinmax(searchBoard, searchCandidates, depth, startTime, maxTime, hash, windowAlpha, windowBeta);
                 if (result != null) {
                     bestMove = result;
                     bestScore = parallelBestScore;
@@ -364,11 +379,19 @@ public class GomokuAI {
 
                     if (checkWinAt(searchBoard, move[0], move[1], GomokuBoard.WHITE)) {
                         searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
+                        // 更新历史启发
+                        historyTable[move[0]][move[1]] += depth * depth;
                         return move; // 直接获胜
                     }
 
-                    int score = minmax(searchBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
+                    int score = minmax(searchBoard, newHash, depth - 1, windowAlpha, windowBeta, false, depth - 1);
                     searchBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
+
+                    // Aspiration Window 溢出检测
+                    if (score <= windowAlpha || score >= windowBeta) {
+                        // 窗口溢出，重新搜索全窗口
+                        score = minmax(searchBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
+                    }
 
                     if (score > currentBestScore) {
                         currentBestScore = score;
@@ -391,9 +414,9 @@ public class GomokuAI {
     }
 
     /**
-     * 并行极大极小搜索
+     * 并行极大极小搜索（支持 Aspiration Windows）
      */
-    private int[] parallelMinmax(int[][] baseBoard, List<int[]> candidates, int depth, long startTime, int maxTime, long baseHash) {
+    private int[] parallelMinmax(int[][] baseBoard, List<int[]> candidates, int depth, long startTime, int maxTime, long baseHash, int windowAlpha, int windowBeta) {
         int threadCount = Math.min(PARALLEL_THREAD_COUNT, candidates.size());
         CountDownLatch latch = new CountDownLatch(threadCount);
         int batchSize = Math.max(1, candidates.size() / threadCount);
@@ -424,10 +447,19 @@ public class GomokuAI {
                             threadBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
                             localBestScore = PatternEvaluator.SCORE_FIVE + depth;
                             localBestMove = move;
+                            // 更新历史启发
+                            historyTable[move[0]][move[1]] += depth * depth;
                             break;
                         }
 
-                        int score = minmax(threadBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
+                        int score = minmax(threadBoard, newHash, depth - 1, windowAlpha, windowBeta, false, depth - 1);
+
+                        // Aspiration Window 溢出检测
+                        if (score <= windowAlpha || score >= windowBeta) {
+                            // 窗口溢出，重新搜索全窗口
+                            score = minmax(threadBoard, newHash, depth - 1, Integer.MIN_VALUE, Integer.MAX_VALUE, false, depth - 1);
+                        }
+
                         threadBoard[move[0]][move[1]] = GomokuBoard.EMPTY;
                         // 更新线程本地哈希值，为下一个候选位置做准备
                         threadHash = newHash ^ getZobrist()[move[0]][move[1]][GomokuBoard.WHITE];
@@ -467,25 +499,25 @@ public class GomokuAI {
     }
 
     /**
-     * 极大极小搜索（Alpha-Beta + 置换表 + 快速胜负检测）
+     * 极大极小搜索（Alpha-Beta + 置换表 + 快速胜负检测 + 历史启发）
      */
     private int minmax(int[][] board, long hash, int depth, int alpha, int beta, boolean isMaximizing, int ply) {
         // 取消检查
         if (isSearchCancelled()) {
             return evaluator.evaluateBoard(board);
         }
-        
+
         // 置换表查找
         int ttScore = ttLookup(hash, depth, alpha, beta);
         if (ttScore != Integer.MIN_VALUE) return ttScore;
 
         int currentPlayer = isMaximizing ? GomokuBoard.WHITE : GomokuBoard.BLACK;
-        
+
         // 超时检查 - 避免搜索过久
         if (searchStartTime > 0 && System.currentTimeMillis() - searchStartTime > MAX_SEARCH_TIME_MS * 0.9) {
             return evaluator.evaluateBoard(board);
         }
-        
+
         List<int[]> candidates = threatDetector.getCandidateMoves(board, difficulty.getSearchRange(), true, MINMAX_CANDIDATE_LIMIT);
         if (candidates.isEmpty()) return evaluator.evaluateBoard(board);
 
@@ -494,23 +526,24 @@ public class GomokuAI {
         int bestScore = isMaximizing ? Integer.MIN_VALUE : Integer.MAX_VALUE;
         int[] bestMoveInNode = null;
 
-        // 尝试杀手启发走法（排在最前）
-        int killerR = killerMoves[ply][0];
-        int killerC = killerMoves[ply][1];
-        int killerIdx = -1;
-        if (killerR >= 0) {
-            for (int i = 0; i < limit; i++) {
-                if (candidates.get(i)[0] == killerR && candidates.get(i)[1] == killerC) {
-                    killerIdx = i;
-                    break;
-                }
-            }
-        }
+        // 历史启发排序：将候选着法按历史分数排序（分数高的优先搜索）
+        final int fPly = ply;
+        candidates.sort((a, b) -> {
+            int scoreA = historyTable[a[0]][a[1]];
+            int scoreB = historyTable[b[0]][b[1]];
+            if (scoreB != scoreA) return scoreB - scoreA; // 历史分数高的在前
+
+            // 杀手启发：杀手走法优先
+            int killerR = killerMoves[fPly][0];
+            int killerC = killerMoves[fPly][1];
+            if (a[0] == killerR && a[1] == killerC) return 1;
+            if (b[0] == killerR && b[1] == killerC) return -1;
+
+            return 0;
+        });
 
         for (int i = 0; i < limit; i++) {
-            // 杀手启发：优先尝试
-            int moveIdx = (i == 0 && killerIdx > 0) ? killerIdx : i;
-            int[] move = candidates.get(moveIdx);
+            int[] move = candidates.get(i);
 
             board[move[0]][move[1]] = currentPlayer;
             long newHash = hash ^ getZobrist()[move[0]][move[1]][currentPlayer];
@@ -522,6 +555,8 @@ public class GomokuAI {
                         ? (PatternEvaluator.SCORE_FIVE + depth)
                         : (-PatternEvaluator.SCORE_FIVE - depth);
                 ttStore(hash, depth, winScore, (byte) 1);
+                // 更新历史启发
+                historyTable[move[0]][move[1]] += depth * depth;
                 return winScore;
             }
 
@@ -549,10 +584,12 @@ public class GomokuAI {
             }
 
             if (beta <= alpha) {
-                // Alpha-Beta 剪枝：记录杀手走法
+                // Alpha-Beta 剪枝：记录杀手走法 + 更新历史启发表
                 if (bestMoveInNode != null) {
                     killerMoves[ply][0] = bestMoveInNode[0];
                     killerMoves[ply][1] = bestMoveInNode[1];
+                    // 历史启发：更新产生剪枝的着法分数
+                    historyTable[bestMoveInNode[0]][bestMoveInNode[1]] += depth * depth;
                 }
                 break;
             }

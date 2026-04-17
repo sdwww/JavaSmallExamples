@@ -1,4 +1,4 @@
-package java.com.demo.gomoku;
+package com.demo.gomoku;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;

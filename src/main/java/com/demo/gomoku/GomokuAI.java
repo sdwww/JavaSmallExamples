@@ -14,6 +14,7 @@ public class GomokuAI {
     private final PatternEvaluator evaluator;
     private final ThreatDetector threatDetector;
     private final OpeningBook openingBook;
+    private final EndgameTablebase endgameTablebase;
     private final GomokuSearcher searcher;
     private final TranspositionTable tt;
     private final SearchHeuristics heuristics;
@@ -27,6 +28,7 @@ public class GomokuAI {
         this.evaluator = PatternEvaluator.getInstance();
         this.threatDetector = new ThreatDetector(evaluator);
         this.openingBook = new OpeningBook();
+        this.endgameTablebase = new EndgameTablebase();
         this.tt = new TranspositionTable();
         this.heuristics = new SearchHeuristics();
         this.searcher = new GomokuSearcher(evaluator, threatDetector, tt, heuristics);
@@ -70,6 +72,14 @@ public class GomokuAI {
         int[] openingMove = openingBook.getMove(board, moveCount);
         if (openingMove != null) {
             return openingMove;
+        }
+
+        // 残局库查询（棋子较少时）
+        if (endgameTablebase.isEndgame(board)) {
+            int[] endgameMove = endgameTablebase.getEndgameMove(board);
+            if (endgameMove != null) {
+                return endgameMove;
+            }
         }
 
         List<int[]> candidates = threatDetector.getCandidateMoves(

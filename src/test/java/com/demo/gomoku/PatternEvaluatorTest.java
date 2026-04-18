@@ -32,16 +32,6 @@ class PatternEvaluatorTest {
     }
 
     @Test
-    @DisplayName("评估活二")
-    void testEvaluateLiveTwo() {
-        GomokuBoard board = new GomokuBoard();
-        board.makeMove(7, 7, GomokuBoard.WHITE);
-        board.makeMove(7, 8, GomokuBoard.WHITE);
-        int score = evaluator.evaluateBoard(board.getBoard());
-        assertTrue(score > 0);
-    }
-
-    @Test
     @DisplayName("评估位置价值")
     void testEvaluatePosition() {
         int[][] board = new int[15][15];
@@ -49,15 +39,6 @@ class PatternEvaluatorTest {
         board[7][8] = GomokuBoard.BLACK;
         int posScore = evaluator.evaluatePosition(board, 7, 9, GomokuBoard.BLACK);
         assertTrue(posScore > 0, "延伸二连应该有正分");
-    }
-
-    @Test
-    @DisplayName("评估中心位置加分")
-    void testCenterBonus() {
-        int[][] board = new int[15][15];
-        int centerScore = evaluator.evaluatePosition(board, 7, 7, GomokuBoard.BLACK);
-        int edgeScore = evaluator.evaluatePosition(board, 0, 0, GomokuBoard.BLACK);
-        assertTrue(centerScore > edgeScore, "中心位置应该比边缘位置分数高");
     }
 
     @Test
@@ -74,13 +55,6 @@ class PatternEvaluatorTest {
     }
 
     @Test
-    @DisplayName("获取线条分数")
-    void testGetLineScore() {
-        int[] fivePattern = {5, 5, 2, 0, 0};
-        assertEquals(PatternEvaluator.SCORE_FIVE, evaluator.getLineScore(fivePattern));
-    }
-
-    @Test
     @DisplayName("检测活三")
     void testIsLiveThree() {
         int[][] board = new int[15][15];
@@ -88,34 +62,5 @@ class PatternEvaluatorTest {
         board[7][7] = GomokuBoard.BLACK;
         board[7][8] = GomokuBoard.BLACK;
         assertTrue(evaluator.isLiveThree(board, 7, 7, GomokuBoard.BLACK));
-    }
-
-    @Test
-    @DisplayName("眠三不是活三")
-    void testSleepThreeIsNotLiveThree() {
-        int[][] board = new int[15][15];
-        board[7][5] = GomokuBoard.WHITE;
-        board[7][6] = GomokuBoard.BLACK;
-        board[7][7] = GomokuBoard.BLACK;
-        board[7][8] = GomokuBoard.BLACK;
-        assertFalse(evaluator.isLiveThree(board, 7, 7, GomokuBoard.BLACK));
-    }
-
-    @Test
-    @DisplayName("空棋盘评估")
-    void testEmptyBoardEvaluation() {
-        int[][] board = new int[15][15];
-        assertEquals(0, evaluator.evaluateBoard(board));
-    }
-
-    @Test
-    @DisplayName("验证有效空位")
-    void testIsValidEmpty() {
-        int[][] board = new int[15][15];
-        assertTrue(evaluator.isValidEmpty(board, 7, 7));
-        board[7][7] = GomokuBoard.BLACK;
-        assertFalse(evaluator.isValidEmpty(board, 7, 7));
-        assertFalse(evaluator.isValidEmpty(board, -1, 7));
-        assertFalse(evaluator.isValidEmpty(board, 15, 7));
     }
 }

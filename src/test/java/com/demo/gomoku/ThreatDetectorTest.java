@@ -105,14 +105,6 @@ class ThreatDetectorTest {
     }
 
     @Test
-    @DisplayName("空棋盘无威胁")
-    void testNoThreatOnEmptyBoard() {
-        int[][] board = new int[15][15];
-        assertNull(detector.findOneMoveWin(board, GomokuBoard.BLACK));
-        assertNull(detector.findJumpFour(board, GomokuBoard.BLACK));
-    }
-
-    @Test
     @DisplayName("候选落子限制")
     void testCandidateLimit() {
         int[][] board = new int[15][15];

@@ -431,7 +431,7 @@ public class GomokuSearcher {
             if (depth > 1) {
                 eval = minmax(board, newHash, depth - 1, alpha, beta, !isMaximizing, ply + 1);
             } else {
-                eval = quiescenceSearch(board, hash, alpha, beta, isMaximizing, QUIESCENCE_DEPTH);
+                eval = quiescenceSearch(board, newHash, alpha, beta, isMaximizing, QUIESCENCE_DEPTH);
             }
 
             board[move[0]][move[1]] = GomokuBoard.EMPTY;

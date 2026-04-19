@@ -266,10 +266,23 @@ public class ThreatDetector {
                                 if (openEnds == 2 && bestThreatLevel < 2) {
                                     bestDefensePos = defensePos;
                                     bestThreatLevel = 2; // 活三
-                                } else if (openEnds == 1 && bestThreatLevel < 1) {
-                                    bestDefensePos = defensePos;
-                                    bestThreatLevel = 1; // 眠三
                                 }
+                            }
+                        }
+
+                        // 检测活三（count == 3 且两端开放）
+                        if (count == 3 && openEnds == 2) {
+                            if (bestThreatLevel < 2) {
+                                bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
+                                bestThreatLevel = 2; // 活三
+                            }
+                        }
+
+                        // 检测眠三（count == 3 且一端开放）
+                        if (count == 3 && openEnds == 1) {
+                            if (bestThreatLevel < 1) {
+                                bestDefensePos = new int[]{emptyEnd1Row, emptyEnd1Col};
+                                bestThreatLevel = 1; // 眠三
                             }
                         }
                         
@@ -635,8 +648,8 @@ public class ThreatDetector {
                                 nr -= dir[0];
                                 nc -= dir[1];
                             }
-                            if (leftCount >= 2) {
-                                // 左边有至少2个连续棋子，可以形成五连
+                            if (leftCount >= 1) {
+                                // 左边有至少1个连续棋子，可以形成五连
                                 jumpThreeCount++;
                             }
                         }

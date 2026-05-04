@@ -12,6 +12,11 @@ public class MineSweeperController {
         this.gameStorage = gameStorage;
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public String handleIllegalArgument(IllegalArgumentException e) {
+        return e.getMessage();
+    }
+
     @GetMapping("/new")
     public NewGameResult newGame() {
         String gameId = gameStorage.createGame();

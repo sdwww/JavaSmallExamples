@@ -68,6 +68,7 @@ public class MineSweeperGame {
      * 处理点击：翻开格子或标记旗
      */
     public ClickResult click(int row, int col) {
+        validateCoordinates(row, col);
         if (gameOver) {
             return ClickResult.gameOver();
         }
@@ -91,6 +92,7 @@ public class MineSweeperGame {
      * 标记/取消标记旗
      */
     public FlagResult flag(int row, int col) {
+        validateCoordinates(row, col);
         if (gameOver || revealed[row][col]) {
             return FlagResult.invalid();
         }
@@ -120,6 +122,15 @@ public class MineSweeperGame {
      */
     private boolean inBounds(int row, int col) {
         return row >= 0 && row < ROWS && col >= 0 && col < COLS;
+    }
+
+    /**
+     * 校验坐标是否有效
+     */
+    private void validateCoordinates(int row, int col) {
+        if (!inBounds(row, col)) {
+            throw new IllegalArgumentException("Invalid coordinates: row=" + row + ", col=" + col);
+        }
     }
 
     /**

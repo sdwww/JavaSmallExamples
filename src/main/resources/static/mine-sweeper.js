@@ -55,11 +55,6 @@ async function flag(r, c) {
   }
 }
 
-async function fetchBoard() {
-  const board = await fetch(`${API}/board?gameId=${gameId}`).then(r => r.json());
-  renderBoard(board);
-}
-
 function renderBoard(board) {
   let fc = 0;
   for (let r = 0; r < R; r++) {

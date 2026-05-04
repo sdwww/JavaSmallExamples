@@ -19,14 +19,14 @@ public class MineSweeperController {
     }
 
     @PostMapping("/click")
-    public MineSweeperGame.ClickResult click(@ModelAttribute("game") MineSweeperGame game,
+    public ClickResult click(@ModelAttribute("game") MineSweeperGame game,
                                             @RequestParam int row,
                                             @RequestParam int col) {
         return game.click(row, col);
     }
 
     @PostMapping("/flag")
-    public MineSweeperGame.FlagResult flag(@ModelAttribute("game") MineSweeperGame game,
+    public FlagResult flag(@ModelAttribute("game") MineSweeperGame game,
                                            @RequestParam int row,
                                            @RequestParam int col) {
         return game.flag(row, col);

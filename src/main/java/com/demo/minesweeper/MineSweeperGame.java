@@ -102,22 +102,32 @@ public class MineSweeperGame {
         int count = 0;
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
-                if (flagged[r][c]) count++;
+                if (flagged[r][c]) {
+                    count++;
+                }
             }
         }
         return count;
     }
 
     private void floodFill(int row, int col) {
-        if (row < 0 || row >= ROWS || col < 0 || col >= COLS) return;
-        if (revealed[row][col] || flagged[row][col]) return;
+        if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+            return;
+        }
+        if (revealed[row][col] || flagged[row][col]) {
+            return;
+        }
 
         revealed[row][col] = true;
-        if (board[row][col] > 0) return;
+        if (board[row][col] > 0) {
+            return;
+        }
 
         for (int dr = -1; dr <= 1; dr++) {
             for (int dc = -1; dc <= 1; dc++) {
-                if (dr == 0 && dc == 0) continue;
+                if (dr == 0 && dc == 0) {
+                    continue;
+                }
                 floodFill(row + dr, col + dc);
             }
         }
@@ -183,54 +193,4 @@ public class MineSweeperGame {
         return false;
     }
 
-    public static class ClickResult {
-        public String type;
-        public int row, col;
-
-        public static ClickResult continueGame() {
-            ClickResult r = new ClickResult();
-            r.type = "continue";
-            return r;
-        }
-
-        public static ClickResult mine(int row, int col) {
-            ClickResult r = new ClickResult();
-            r.type = "mine";
-            r.row = row;
-            r.col = col;
-            return r;
-        }
-
-        public static ClickResult win() {
-            ClickResult r = new ClickResult();
-            r.type = "win";
-            return r;
-        }
-
-        public static ClickResult gameOver() {
-            ClickResult r = new ClickResult();
-            r.type = "gameover";
-            return r;
-        }
     }
-
-    public static class FlagResult {
-        public boolean flagged;
-        public int flagCount;
-        public boolean valid;
-
-        public static FlagResult ok(boolean flagged, int flagCount) {
-            FlagResult r = new FlagResult();
-            r.valid = true;
-            r.flagged = flagged;
-            r.flagCount = flagCount;
-            return r;
-        }
-
-        public static FlagResult invalid() {
-            FlagResult r = new FlagResult();
-            r.valid = false;
-            return r;
-        }
-    }
-}

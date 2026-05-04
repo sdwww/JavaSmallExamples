@@ -14,7 +14,7 @@ async function init() {
     const r = Math.floor(i / C), c = i % C;
     cell.onclick = () => click(r, c);
     cell.ondblclick = () => chord(r, c);
-    cell.oncontextmenu = e => { e.preventDefault(); flag(r, c); };
+    cell.oncontextmenu = e => { e.preventDefault(); onRightClick(r, c); };
     g.appendChild(cell);
   }
   renderBoard(data.board);
@@ -70,6 +70,17 @@ async function flag(r, c) {
     const el = cell(r, c);
     el.className = res.flagged ? 'cell flag' : 'cell';
     document.getElementById('mines').textContent = String(M - res.flagCount).padStart(3, '0');
+  }
+}
+
+async function onRightClick(r, c) {
+  const el = cell(r, c);
+  // 如果是翻开的数字格，触发 chord
+  if (el.classList.contains('open') && el.dataset.n) {
+    chord(r, c);
+  } else {
+    // 否则触发 flag
+    flag(r, c);
   }
 }
 

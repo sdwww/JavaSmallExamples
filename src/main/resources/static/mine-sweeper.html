@@ -10,13 +10,13 @@
         .header span { font-size: 20px; }
         .face { cursor: pointer; font-size: 24px; }
         .grid { display: grid; border: 3px solid #888; background: #c0c0c0; }
-        .cell { width: 36px; height: 36px; border: 2px solid; border-color: #fff #666 #666 #fff; background: #c0c0c0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .cell { width: 50px; height: 50px; border: 2px solid; border-color: #fff #666 #666 #fff; background: #c0c0c0; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; cursor: pointer; }
         .cell:hover { background: #d8d8d8; }
         .cell.open { border-color: #666; background: #c0c0c0; }
         .cell.flag { border-color: #666; }
-        .cell.flag::after { content: '🚩'; font-size: 18px; }
+        .cell.flag::after { content: '🚩'; font-size: 26px; }
         .cell.mine { border-color: #666; }
-        .cell.mine::after { content: '💣'; font-size: 18px; }
+        .cell.mine::after { content: '💣'; font-size: 26px; }
         .cell[data-n='1'] { color: #00f; }
         .cell[data-n='2'] { color: #080; }
         .cell[data-n='3'] { color: #f00; }
@@ -29,7 +29,6 @@
         .msg.show { display: flex; }
         .msg.win { background: rgba(0,128,0,.5); }
         .msg.lose { background: rgba(128,0,0,.5); }
-        .reset-btn { padding: 8px 24px; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -37,17 +36,19 @@
     <span id="mines">040</span>
     <span class="face" id="face" onclick="reset()">😊</span>
     <span id="time">000</span>
-  </div>
+</div>
 <div class="grid" id="grid"></div>
 <div class="msg" id="msg"></div>
 
 <script>
     const R = 16, C = 16, M = 40, API = '/api/mine-sweeper';
+    let gameId = null;
     let sec = 0, timer = null, over = false;
 
-    function init() {
+    async function init() {
+      gameId = await fetch(`${API}/new`).then(r => r.text());
       const g = document.getElementById('grid');
-      g.style.gridTemplateColumns = `repeat(${C}, 36px)`;
+      g.style.gridTemplateColumns = `repeat(${C}, 50px)`;
       g.innerHTML = '';
       for (let i = 0; i < R * C; i++) {
         const cell = document.createElement('div');
@@ -73,7 +74,7 @@
     async function click(r, c) {
       if (over) return;
       startTimer();
-      const res = await fetch(`${API}/click?row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
+      const res = await fetch(`${API}/click?gameId=${gameId}&row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
       if (res.type === 'mine') {
         over = true; clearInterval(timer);
         document.getElementById('face').textContent = '😵';
@@ -88,7 +89,7 @@
 
     async function flag(r, c) {
       if (over) return;
-      const res = await fetch(`${API}/flag?row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
+      const res = await fetch(`${API}/flag?gameId=${gameId}&row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
       if (res.valid) {
         const el = cell(r, c);
         el.className = res.flagged ? 'cell flag' : 'cell';
@@ -97,7 +98,7 @@
     }
 
     async function fetchBoard() {
-      const board = await fetch(`${API}/board`).then(r => r.json());
+      const board = await fetch(`${API}/board?gameId=${gameId}`).then(r => r.json());
       let fc = 0;
       for (let r = 0; r < R; r++) {
         for (let c = 0; c < C; c++) {
@@ -123,7 +124,7 @@
       document.getElementById('time').textContent = '000';
       document.getElementById('face').textContent = '😊';
       document.getElementById('msg').className = 'msg';
-      await fetch(`${API}/reset`, { method: 'POST' });
+      await fetch(`${API}/reset?gameId=${gameId}`, { method: 'POST' });
       await fetchBoard();
     }
 

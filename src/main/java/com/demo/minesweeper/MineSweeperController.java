@@ -1,44 +1,47 @@
 package com.demo.minesweeper;
 
-import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/mine-sweeper")
-@SessionAttributes("game")
 public class MineSweeperController {
 
-    @ModelAttribute("game")
-    public MineSweeperGame game(HttpSession session) {
-        MineSweeperGame game = (MineSweeperGame) session.getAttribute("game");
-        if (game == null) {
-            game = new MineSweeperGame();
-            session.setAttribute("game", game);
-        }
-        return game;
+    private final GameStorage gameStorage;
+
+    public MineSweeperController(GameStorage gameStorage) {
+        this.gameStorage = gameStorage;
+    }
+
+    @GetMapping("/new")
+    public String newGame() {
+        return gameStorage.createGame();
+    }
+
+    @GetMapping("/board")
+    public int[][] board(@RequestParam String gameId) {
+        MineSweeperGame game = gameStorage.getGame(gameId);
+        return game.getBoard();
     }
 
     @PostMapping("/click")
-    public ClickResult click(@ModelAttribute("game") MineSweeperGame game,
-                                            @RequestParam int row,
-                                            @RequestParam int col) {
+    public ClickResult click(@RequestParam String gameId,
+                             @RequestParam int row,
+                             @RequestParam int col) {
+        MineSweeperGame game = gameStorage.getGame(gameId);
         return game.click(row, col);
     }
 
     @PostMapping("/flag")
-    public FlagResult flag(@ModelAttribute("game") MineSweeperGame game,
-                                           @RequestParam int row,
-                                           @RequestParam int col) {
+    public FlagResult flag(@RequestParam String gameId,
+                           @RequestParam int row,
+                           @RequestParam int col) {
+        MineSweeperGame game = gameStorage.getGame(gameId);
         return game.flag(row, col);
     }
 
-    @GetMapping("/board")
-    public int[][] board(@ModelAttribute("game") MineSweeperGame game) {
-        return game.getBoard();
-    }
-
     @PostMapping("/reset")
-    public void reset(@ModelAttribute("game") MineSweeperGame game) {
+    public void reset(@RequestParam String gameId) {
+        MineSweeperGame game = gameStorage.getGame(gameId);
         game.reset();
     }
 }

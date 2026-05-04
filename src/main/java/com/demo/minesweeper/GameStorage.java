@@ -9,9 +9,9 @@ public class GameStorage {
 
     private final ConcurrentHashMap<String, MineSweeperGame> games = new ConcurrentHashMap<>();
 
-    public String createGame() {
+    public String createGame(Difficulty difficulty) {
         String gameId = UUID.randomUUID().toString();
-        games.put(gameId, new MineSweeperGame());
+        games.put(gameId, new MineSweeperGame(difficulty));
         return gameId;
     }
 

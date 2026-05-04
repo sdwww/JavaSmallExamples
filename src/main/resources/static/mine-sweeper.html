@@ -29,10 +29,16 @@
         .msg.show { display: flex; }
         .msg.win { background: rgba(0,128,0,.5); }
         .msg.lose { background: rgba(128,0,0,.5); }
+        .difficulty { padding: 6px 10px; font-size: 16px; border: 2px solid #888; background: #c0c0c0; cursor: pointer; }
     </style>
 </head>
 <body>
 <div class="header">
+    <select id="difficulty" class="difficulty">
+        <option value="EASY">初级</option>
+        <option value="MEDIUM" selected>中级</option>
+        <option value="HARD">高级</option>
+    </select>
     <span id="mines">040</span>
     <span class="face" id="face" onclick="reset()">😊</span>
     <span id="time">000</span>

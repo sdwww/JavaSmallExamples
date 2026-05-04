@@ -18,10 +18,10 @@ public class MineSweeperController {
     }
 
     @GetMapping("/new")
-    public NewGameResult newGame() {
-        String gameId = gameStorage.createGame();
+    public NewGameResult newGame(@RequestParam(defaultValue = "MEDIUM") Difficulty difficulty) {
+        String gameId = gameStorage.createGame(difficulty);
         MineSweeperGame game = gameStorage.getGame(gameId);
-        return new NewGameResult(gameId, game.getBoard());
+        return new NewGameResult(gameId, game.getRows(), game.getCols(), game.getMines(), game.getBoard());
     }
 
     @PostMapping("/click")

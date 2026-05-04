@@ -4,25 +4,32 @@ import java.util.Random;
 
 public class MineSweeperGame {
 
-    public static final int ROWS = 16;
-    public static final int COLS = 16;
-    public static final int MINES = 40;
+    private final int rows;
+    private final int cols;
+    private final int mines;
 
-    private final int[][] board;      // 每个格子的数字（-1=雷，0-8=周围雷数）
-    private final boolean[][] revealed;  // 是否已翻开
-    private final boolean[][] flagged;  // 是否标记了旗
-    private final boolean[][] isMine;   // 是否是雷
-    private boolean gameOver;           // 游戏是否结束
-    private boolean firstClick;         // 是否首次点击（首次点击不炸）
+    private final int[][] board;
+    private final boolean[][] revealed;
+    private final boolean[][] flagged;
+    private final boolean[][] isMine;
+    private boolean gameOver;
+    private boolean firstClick;
 
-    public MineSweeperGame() {
-        this.board = new int[ROWS][COLS];
-        this.revealed = new boolean[ROWS][COLS];
-        this.flagged = new boolean[ROWS][COLS];
-        this.isMine = new boolean[ROWS][COLS];
+    public MineSweeperGame(Difficulty difficulty) {
+        this.rows = difficulty.getRows();
+        this.cols = difficulty.getCols();
+        this.mines = difficulty.getMines();
+        this.board = new int[rows][cols];
+        this.revealed = new boolean[rows][cols];
+        this.flagged = new boolean[rows][cols];
+        this.isMine = new boolean[rows][cols];
         this.gameOver = false;
         this.firstClick = true;
     }
+
+    public int getRows() { return rows; }
+    public int getCols() { return cols; }
+    public int getMines() { return mines; }
 
     /**
      * 布雷：以点击位置为中心，周围9格不放置雷
@@ -30,7 +37,7 @@ public class MineSweeperGame {
     public void placeMines(int clickedRow, int clickedCol) {
         Random random = new Random();
 
-        boolean[][] safeZone = new boolean[ROWS][COLS];
+        boolean[][] safeZone = new boolean[rows][cols];
         for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
             for (int colOffset = -1; colOffset <= 1; colOffset++) {
                 int safeRow = clickedRow + rowOffset;
@@ -42,17 +49,17 @@ public class MineSweeperGame {
         }
 
         int mineCount = 0;
-        while (mineCount < MINES) {
-            int randomRow = random.nextInt(ROWS);
-            int randomCol = random.nextInt(COLS);
+        while (mineCount < mines) {
+            int randomRow = random.nextInt(rows);
+            int randomCol = random.nextInt(cols);
             if (!safeZone[randomRow][randomCol] && !isMine[randomRow][randomCol]) {
                 isMine[randomRow][randomCol] = true;
                 mineCount++;
             }
         }
 
-        for (int row = 0; row < ROWS; row++) {
-            for (int col = 0; col < COLS; col++) {
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
                 if (isMine[row][col]) {
                     board[row][col] = -1;
                 } else {
@@ -198,7 +205,7 @@ public class MineSweeperGame {
      * 判断坐标是否在棋盘范围内
      */
     private boolean inBounds(int row, int col) {
-        return row >= 0 && row < ROWS && col >= 0 && col < COLS;
+        return row >= 0 && row < rows && col >= 0 && col < cols;
     }
 
     /**
@@ -241,8 +248,8 @@ public class MineSweeperGame {
      */
     private int countFlags() {
         int count = 0;
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
                 if (flagged[r][c]) {
                     count++;
                 }
@@ -255,8 +262,8 @@ public class MineSweeperGame {
      * 检查是否胜利：所有非雷格子都被翻开
      */
     private boolean checkWin() {
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
                 if (!revealed[r][c] && !isMine[r][c]) {
                     return false;
                 }
@@ -270,9 +277,9 @@ public class MineSweeperGame {
      * 获取当前棋盘状态
      */
     public int[][] getBoard() {
-        int[][] result = new int[ROWS][COLS];
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
+        int[][] result = new int[rows][cols];
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
                 if (revealed[r][c]) {
                     result[r][c] = board[r][c];
                 } else if (flagged[r][c]) {
@@ -289,9 +296,9 @@ public class MineSweeperGame {
      * 获取棋盘状态（游戏结束时显示所有雷的位置）
      */
     public int[][] getBoardWithMines() {
-        int[][] result = new int[ROWS][COLS];
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
+        int[][] result = new int[rows][cols];
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
                 if (isMine[r][c]) {
                     result[r][c] = CellValue.MINE.getCode();
                 } else if (revealed[r][c]) {
@@ -310,8 +317,8 @@ public class MineSweeperGame {
      * 重置游戏为初始状态
      */
     public void reset() {
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
                 board[r][c] = 0;
                 revealed[r][c] = false;
                 flagged[r][c] = false;

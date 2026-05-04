@@ -1,10 +1,12 @@
-const R = 16, C = 16, M = 40, API = '/api/mine-sweeper';
-let gameId = null;
+const API = '/api/mine-sweeper';
+let gameId = null, R = 16, C = 16, M = 40;
 let sec = 0, timer = null, over = false;
 
 async function init() {
-  const data = await fetch(`${API}/new`).then(r => r.json());
+  const difficulty = document.getElementById('difficulty').value;
+  const data = await fetch(`${API}/new?difficulty=${difficulty}`).then(r => r.json());
   gameId = data.gameId;
+  R = data.rows; C = data.cols; M = data.mines;
   const g = document.getElementById('grid');
   g.style.gridTemplateColumns = `repeat(${C}, 50px)`;
   g.innerHTML = '';
@@ -74,11 +76,9 @@ async function flag(r, c) {
 
 async function onRightClick(r, c) {
   const el = cell(r, c);
-  // 如果是翻开的数字格，触发 chord
   if (el.classList.contains('open') && el.dataset.n) {
     chord(r, c);
   } else {
-    // 否则触发 flag
     flag(r, c);
   }
 }
@@ -111,8 +111,22 @@ async function reset() {
   document.getElementById('time').textContent = '000';
   document.getElementById('face').textContent = '😊';
   document.getElementById('msg').className = 'msg';
-  const board = await fetch(`${API}/reset?gameId=${gameId}`, { method: 'POST' }).then(r => r.json());
-  renderBoard(board);
+  const difficulty = document.getElementById('difficulty').value;
+  const data = await fetch(`${API}/new?difficulty=${difficulty}`).then(r => r.json());
+  gameId = data.gameId;
+  R = data.rows; C = data.cols; M = data.mines;
+  const g = document.getElementById('grid');
+  g.style.gridTemplateColumns = `repeat(${C}, 50px)`;
+  g.innerHTML = '';
+  for (let i = 0; i < R * C; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const r = Math.floor(i / C), c = i % C;
+    cell.onclick = () => click(r, c);
+    cell.oncontextmenu = e => { e.preventDefault(); onRightClick(r, c); };
+    g.appendChild(cell);
+  }
+  renderBoard(data.board);
 }
 
 function showMsg(txt, cls) {
@@ -121,4 +135,5 @@ function showMsg(txt, cls) {
   m.className = `msg show ${cls}`;
 }
 
+document.getElementById('difficulty').onchange = init;
 init();

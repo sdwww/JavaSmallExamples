@@ -24,45 +24,36 @@ public class MineSweeperGame {
         this.firstClick = true;
     }
 
-    public void placeMines(int excludeRow, int excludeCol) {
+    public void placeMines(int clickedRow, int clickedCol) {
         Random random = new Random();
 
-        boolean[][] exclude = new boolean[ROWS][COLS];
-        for (int dr = -1; dr <= 1; dr++) {
-            for (int dc = -1; dc <= 1; dc++) {
-                int r = excludeRow + dr;
-                int c = excludeCol + dc;
-                if (r >= 0 && r < ROWS && c >= 0 && c < COLS) {
-                    exclude[r][c] = true;
+        boolean[][] safeZone = new boolean[ROWS][COLS];
+        for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
+            for (int colOffset = -1; colOffset <= 1; colOffset++) {
+                int safeRow = clickedRow + rowOffset;
+                int safeCol = clickedCol + colOffset;
+                if (inBounds(safeRow, safeCol)) {
+                    safeZone[safeRow][safeCol] = true;
                 }
             }
         }
 
-        int placed = 0;
-        while (placed < MINES) {
-            int r = random.nextInt(ROWS);
-            int c = random.nextInt(COLS);
-            if (!exclude[r][c] && !isMine[r][c]) {
-                isMine[r][c] = true;
-                placed++;
+        int mineCount = 0;
+        while (mineCount < MINES) {
+            int randomRow = random.nextInt(ROWS);
+            int randomCol = random.nextInt(COLS);
+            if (!safeZone[randomRow][randomCol] && !isMine[randomRow][randomCol]) {
+                isMine[randomRow][randomCol] = true;
+                mineCount++;
             }
         }
 
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
-                if (isMine[r][c]) {
-                    board[r][c] = -1;
+        for (int row = 0; row < ROWS; row++) {
+            for (int col = 0; col < COLS; col++) {
+                if (isMine[row][col]) {
+                    board[row][col] = -1;
                 } else {
-                    int count = 0;
-                    for (int dr = -1; dr <= 1; dr++) {
-                        for (int dc = -1; dc <= 1; dc++) {
-                            int nr = r + dr, nc = c + dc;
-                            if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && isMine[nr][nc]) {
-                                count++;
-                            }
-                        }
-                    }
-                    board[r][c] = count;
+                    board[row][col] = countNeighborMines(row, col);
                 }
             }
         }
@@ -98,11 +89,13 @@ public class MineSweeperGame {
         return FlagResult.ok(flagged[row][col], countFlags());
     }
 
-    private int countFlags() {
+    private int countNeighborMines(int row, int col) {
         int count = 0;
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
-                if (flagged[r][c]) {
+        for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
+            for (int colOffset = -1; colOffset <= 1; colOffset++) {
+                int neighborRow = row + rowOffset;
+                int neighborCol = col + colOffset;
+                if (inBounds(neighborRow, neighborCol) && isMine[neighborRow][neighborCol]) {
                     count++;
                 }
             }
@@ -110,8 +103,12 @@ public class MineSweeperGame {
         return count;
     }
 
+    private boolean inBounds(int row, int col) {
+        return row >= 0 && row < ROWS && col >= 0 && col < COLS;
+    }
+
     private void floodFill(int row, int col) {
-        if (row < 0 || row >= ROWS || col < 0 || col >= COLS) {
+        if (!inBounds(row, col)) {
             return;
         }
         if (revealed[row][col] || flagged[row][col]) {
@@ -131,6 +128,18 @@ public class MineSweeperGame {
                 floodFill(row + rowDelta, col + colDelta);
             }
         }
+    }
+
+    private int countFlags() {
+        int count = 0;
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                if (flagged[r][c]) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private boolean checkWin() {

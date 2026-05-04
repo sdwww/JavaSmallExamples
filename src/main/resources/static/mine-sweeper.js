@@ -13,7 +13,6 @@ async function init() {
     cell.className = 'cell';
     const r = Math.floor(i / C), c = i % C;
     cell.onclick = () => click(r, c);
-    cell.ondblclick = () => chord(r, c);
     cell.oncontextmenu = e => { e.preventDefault(); onRightClick(r, c); };
     g.appendChild(cell);
   }

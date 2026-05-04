@@ -297,7 +297,7 @@ public class MineSweeperGame {
                 } else if (revealed[r][c]) {
                     result[r][c] = board[r][c];
                 } else if (flagged[r][c]) {
-                    result[r][c] = CellValue.FLAG.getCode();;
+                    result[r][c] = CellValue.FLAG.getCode();
                 } else {
                     result[r][c] = CellValue.HIDDEN.getCode();
                 }

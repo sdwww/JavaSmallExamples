@@ -18,7 +18,7 @@ public class MineSweeperController {
     }
 
     @GetMapping("/new")
-    public NewGameResult newGame(@RequestParam(defaultValue = "MEDIUM") Difficulty difficulty) {
+    public NewGameResult newGame(@RequestParam(defaultValue = "EASY") Difficulty difficulty) {
         String gameId = gameStorage.createGame(difficulty);
         MineSweeperGame game = gameStorage.getGame(gameId);
         return new NewGameResult(gameId, game.getRows(), game.getCols(), game.getMines(), game.getBoard());

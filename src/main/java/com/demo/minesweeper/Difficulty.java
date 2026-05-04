@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum Difficulty {
-    EASY(10, 10, 12),
+    EASY(12, 12, 20),
     MEDIUM(16, 16, 40),
     HARD(16, 30, 99);
 

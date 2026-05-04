@@ -18,8 +18,4 @@ public class GameStorage {
     public MineSweeperGame getGame(String gameId) {
         return games.get(gameId);
     }
-
-    public void removeGame(String gameId) {
-        games.remove(gameId);
-    }
 }

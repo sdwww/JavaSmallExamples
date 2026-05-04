@@ -123,12 +123,12 @@ public class MineSweeperGame {
             return;
         }
 
-        for (int dr = -1; dr <= 1; dr++) {
-            for (int dc = -1; dc <= 1; dc++) {
-                if (dr == 0 && dc == 0) {
+        for (int rowDelta = -1; rowDelta <= 1; rowDelta++) {
+            for (int colDelta = -1; colDelta <= 1; colDelta++) {
+                if (rowDelta == 0 && colDelta == 0) {
                     continue;
                 }
-                floodFill(row + dr, col + dc);
+                floodFill(row + rowDelta, col + colDelta);
             }
         }
     }
@@ -161,14 +161,6 @@ public class MineSweeperGame {
         return result;
     }
 
-    public boolean isGameOver() {
-        return gameOver;
-    }
-
-    public boolean isWin() {
-        return gameOver && !hasMoreRevealedMim();
-    }
-
     public void reset() {
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
@@ -181,16 +173,4 @@ public class MineSweeperGame {
         gameOver = false;
         firstClick = true;
     }
-
-    private boolean hasMoreRevealedMim() {
-        for (int r = 0; r < ROWS; r++) {
-            for (int c = 0; c < COLS; c++) {
-                if (revealed[r][c] && isMine[r][c]) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    }
+}

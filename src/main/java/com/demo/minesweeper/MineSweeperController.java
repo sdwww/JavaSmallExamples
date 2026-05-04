@@ -29,6 +29,9 @@ public class MineSweeperController {
                              @RequestParam int row,
                              @RequestParam int col) {
         MineSweeperGame game = gameStorage.getGame(gameId);
+        if (game == null) {
+            return ClickResult.gameOver();
+        }
         return game.click(row, col);
     }
 
@@ -37,12 +40,18 @@ public class MineSweeperController {
                            @RequestParam int row,
                            @RequestParam int col) {
         MineSweeperGame game = gameStorage.getGame(gameId);
+        if (game == null) {
+            return FlagResult.invalid();
+        }
         return game.flag(row, col);
     }
 
     @PostMapping("/reset")
     public int[][] reset(@RequestParam String gameId) {
         MineSweeperGame game = gameStorage.getGame(gameId);
+        if (game == null) {
+            throw new IllegalArgumentException("Game not found: " + gameId);
+        }
         game.reset();
         return game.getBoard();
     }

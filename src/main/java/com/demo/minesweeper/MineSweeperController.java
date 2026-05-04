@@ -30,7 +30,7 @@ public class MineSweeperController {
                              @RequestParam int col) {
         MineSweeperGame game = gameStorage.getGame(gameId);
         if (game == null) {
-            return ClickResult.gameOver();
+            throw new IllegalArgumentException("Game not found: " + gameId);
         }
         return game.click(row, col);
     }
@@ -41,7 +41,7 @@ public class MineSweeperController {
                            @RequestParam int col) {
         MineSweeperGame game = gameStorage.getGame(gameId);
         if (game == null) {
-            return FlagResult.invalid();
+            throw new IllegalArgumentException("Game not found: " + gameId);
         }
         return game.flag(row, col);
     }

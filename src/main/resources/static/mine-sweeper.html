@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>扫雷</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: monospace; background: #e8e8e8; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+        .header { display: flex; gap: 20px; align-items: center; background: #c0c0c0; padding: 8px 16px; border: 2px solid #888; }
+        .header span { font-size: 20px; }
+        .face { cursor: pointer; font-size: 24px; }
+        .grid { display: grid; border: 3px solid #888; background: #c0c0c0; }
+        .cell { width: 36px; height: 36px; border: 2px solid; border-color: #fff #666 #666 #fff; background: #c0c0c0; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; cursor: pointer; }
+        .cell:hover { background: #d8d8d8; }
+        .cell.open { border-color: #666; background: #c0c0c0; }
+        .cell.flag { border-color: #666; }
+        .cell.flag::after { content: '🚩'; font-size: 18px; }
+        .cell.mine { border-color: #666; }
+        .cell.mine::after { content: '💣'; font-size: 18px; }
+        .cell[data-n='1'] { color: #00f; }
+        .cell[data-n='2'] { color: #080; }
+        .cell[data-n='3'] { color: #f00; }
+        .cell[data-n='4'] { color: #008; }
+        .cell[data-n='5'] { color: #800; }
+        .cell[data-n='6'] { color: #088; }
+        .cell[data-n='7'] { color: #000; }
+        .cell[data-n='8'] { color: #888; }
+        .msg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; font-size: 40px; color: #fff; }
+        .msg.show { display: flex; }
+        .msg.win { background: rgba(0,128,0,.5); }
+        .msg.lose { background: rgba(128,0,0,.5); }
+        .reset-btn { padding: 8px 24px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+<div class="header">
+    <span id="mines">040</span>
+    <span class="face" id="face" onclick="reset()">😄</span>
+    <span id="time">000</span>
+</div>
+<div class="grid" id="grid"></div>
+<button class="reset-btn" onclick="reset()">重新开始</button>
+<div class="msg" id="msg"></div>
+
+<script>
+    const R = 16, C = 16, M = 40, API = '/api/mine-sweeper';
+    let sec = 0, timer = null, over = false;
+
+    function init() {
+      const g = document.getElementById('grid');
+      g.style.gridTemplateColumns = `repeat(${C}, 36px)`;
+      g.innerHTML = '';
+      for (let i = 0; i < R * C; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.onclick = () => click(Math.floor(i / C), i % C);
+        cell.oncontextmenu = e => { e.preventDefault(); flag(Math.floor(i / C), i % C); };
+        g.appendChild(cell);
+      }
+      fetchBoard();
+    }
+
+    function startTimer() {
+      if (timer) return;
+      timer = setInterval(() => {
+        document.getElementById('time').textContent = String(++sec).padStart(3, '0');
+      }, 1000);
+    }
+
+    function cell(r, c) {
+      return document.getElementById('grid').children[r * C + c];
+    }
+
+    async function click(r, c) {
+      if (over) return;
+      startTimer();
+      const res = await fetch(`${API}/click?row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
+      if (res.type === 'mine') {
+        over = true; clearInterval(timer);
+        document.getElementById('face').textContent = '😵';
+        showMsg('💥 游戏结束', 'lose');
+      } else if (res.type === 'win') {
+        over = true; clearInterval(timer);
+        document.getElementById('face').textContent = '😎';
+        showMsg('🎉 胜利！', 'win');
+      }
+      await fetchBoard();
+    }
+
+    async function flag(r, c) {
+      if (over) return;
+      const res = await fetch(`${API}/flag?row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
+      if (res.valid) {
+        const el = cell(r, c);
+        el.className = res.flagged ? 'cell flag' : 'cell';
+        document.getElementById('mines').textContent = String(M - res.flagCount).padStart(3, '0');
+      }
+    }
+
+    async function fetchBoard() {
+      const board = await fetch(`${API}/board`).then(r => r.json());
+      let fc = 0;
+      for (let r = 0; r < R; r++) {
+        for (let c = 0; c < C; c++) {
+          const el = cell(r, c);
+          const v = board[r][c];
+          el.className = 'cell';
+          el.textContent = '';
+          el.removeAttribute('data-n');
+          if (v >= 0) {
+            el.classList.add('open');
+            if (v > 0) { el.textContent = v; el.dataset.n = v; }
+          } else if (v === -2) {
+            el.classList.add('flag');
+            fc++;
+          }
+        }
+      }
+      document.getElementById('mines').textContent = String(M - fc).padStart(3, '0');
+    }
+
+    async function reset() {
+      clearInterval(timer); timer = null; sec = 0; over = false;
+      document.getElementById('time').textContent = '000';
+      document.getElementById('face').textContent = '😄';
+      document.getElementById('msg').className = 'msg';
+      await fetch(`${API}/reset`, { method: 'POST' });
+      await fetchBoard();
+    }
+
+    function showMsg(txt, cls) {
+      const m = document.getElementById('msg');
+      m.textContent = txt;
+      m.className = `msg show ${cls}`;
+    }
+
+    init();
+</script>
+</body>
+</html>

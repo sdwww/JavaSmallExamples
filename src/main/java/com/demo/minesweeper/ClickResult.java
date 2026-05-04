@@ -2,26 +2,26 @@ package com.demo.minesweeper;
 
 public class ClickResult {
     public String type;
-    public int row;
-    public int col;
+    public int[][] board;
 
-    public static ClickResult continueGame() {
+    public static ClickResult continueGame(int[][] board) {
         ClickResult r = new ClickResult();
         r.type = "continue";
+        r.board = board;
         return r;
     }
 
-    public static ClickResult mine(int row, int col) {
+    public static ClickResult mine(int row, int col, int[][] board) {
         ClickResult r = new ClickResult();
         r.type = "mine";
-        r.row = row;
-        r.col = col;
+        r.board = board;
         return r;
     }
 
-    public static ClickResult win() {
+    public static ClickResult win(int[][] board) {
         ClickResult r = new ClickResult();
         r.type = "win";
+        r.board = board;
         return r;
     }
 

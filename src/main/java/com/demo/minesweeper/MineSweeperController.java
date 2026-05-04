@@ -13,14 +13,10 @@ public class MineSweeperController {
     }
 
     @GetMapping("/new")
-    public String newGame() {
-        return gameStorage.createGame();
-    }
-
-    @GetMapping("/board")
-    public int[][] board(@RequestParam String gameId) {
+    public NewGameResult newGame() {
+        String gameId = gameStorage.createGame();
         MineSweeperGame game = gameStorage.getGame(gameId);
-        return game.getBoard();
+        return new NewGameResult(gameId, game.getBoard());
     }
 
     @PostMapping("/click")
@@ -40,8 +36,9 @@ public class MineSweeperController {
     }
 
     @PostMapping("/reset")
-    public void reset(@RequestParam String gameId) {
+    public int[][] reset(@RequestParam String gameId) {
         MineSweeperGame game = gameStorage.getGame(gameId);
         game.reset();
+        return game.getBoard();
     }
 }

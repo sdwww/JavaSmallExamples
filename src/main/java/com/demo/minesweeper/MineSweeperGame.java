@@ -75,7 +75,7 @@ public class MineSweeperGame {
             return ClickResult.gameOver();
         }
         if (revealed[row][col] || flagged[row][col]) {
-            return ClickResult.continueGame();
+            return ClickResult.continueGame(getBoard());
         }
         if (firstClick) {
             placeMines(row, col);
@@ -83,11 +83,11 @@ public class MineSweeperGame {
 
         if (isMine[row][col]) {
             gameOver = true;
-            return ClickResult.mine(row, col);
+            return ClickResult.mine(row, col, getBoard());
         }
 
         floodFill(row, col);
-        return checkWin() ? ClickResult.win() : ClickResult.continueGame();
+        return checkWin() ? ClickResult.win(getBoard()) : ClickResult.continueGame(getBoard());
     }
 
     public FlagResult flag(int row, int col) {

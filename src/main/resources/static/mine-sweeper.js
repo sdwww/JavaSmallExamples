@@ -3,7 +3,8 @@ let gameId = null;
 let sec = 0, timer = null, over = false;
 
 async function init() {
-  gameId = await fetch(`${API}/new`).then(r => r.text());
+  const data = await fetch(`${API}/new`).then(r => r.json());
+  gameId = data.gameId;
   const g = document.getElementById('grid');
   g.style.gridTemplateColumns = `repeat(${C}, 50px)`;
   g.innerHTML = '';
@@ -14,7 +15,7 @@ async function init() {
     cell.oncontextmenu = e => { e.preventDefault(); flag(Math.floor(i / C), i % C); };
     g.appendChild(cell);
   }
-  fetchBoard();
+  renderBoard(data.board);
 }
 
 function startTimer() {
@@ -41,7 +42,7 @@ async function click(r, c) {
     document.getElementById('face').textContent = '😎';
     showMsg('🎉 胜利！', 'win');
   }
-  await fetchBoard();
+  renderBoard(res.board);
 }
 
 async function flag(r, c) {
@@ -56,6 +57,10 @@ async function flag(r, c) {
 
 async function fetchBoard() {
   const board = await fetch(`${API}/board?gameId=${gameId}`).then(r => r.json());
+  renderBoard(board);
+}
+
+function renderBoard(board) {
   let fc = 0;
   for (let r = 0; r < R; r++) {
     for (let c = 0; c < C; c++) {
@@ -81,8 +86,8 @@ async function reset() {
   document.getElementById('time').textContent = '000';
   document.getElementById('face').textContent = '😊';
   document.getElementById('msg').className = 'msg';
-  await fetch(`${API}/reset?gameId=${gameId}`, { method: 'POST' });
-  await fetchBoard();
+  const board = await fetch(`${API}/reset?gameId=${gameId}`, { method: 'POST' }).then(r => r.json());
+  renderBoard(board);
 }
 
 function showMsg(txt, cls) {

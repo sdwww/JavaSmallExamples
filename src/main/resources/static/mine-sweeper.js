@@ -11,8 +11,10 @@ async function init() {
   for (let i = 0; i < R * C; i++) {
     const cell = document.createElement('div');
     cell.className = 'cell';
-    cell.onclick = () => click(Math.floor(i / C), i % C);
-    cell.oncontextmenu = e => { e.preventDefault(); flag(Math.floor(i / C), i % C); };
+    const r = Math.floor(i / C), c = i % C;
+    cell.onclick = () => click(r, c);
+    cell.ondblclick = () => chord(r, c);
+    cell.oncontextmenu = e => { e.preventDefault(); flag(r, c); };
     g.appendChild(cell);
   }
   renderBoard(data.board);
@@ -33,6 +35,22 @@ async function click(r, c) {
   if (over) return;
   startTimer();
   const res = await fetch(`${API}/click?gameId=${gameId}&row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
+  if (res.type === 'mine') {
+    over = true; clearInterval(timer);
+    document.getElementById('face').textContent = '😵';
+    showMsg('💥 游戏结束', 'lose');
+  } else if (res.type === 'win') {
+    over = true; clearInterval(timer);
+    document.getElementById('face').textContent = '😎';
+    showMsg('🎉 胜利！', 'win');
+  }
+  renderBoard(res.board);
+}
+
+async function chord(r, c) {
+  if (over) return;
+  startTimer();
+  const res = await fetch(`${API}/chord?gameId=${gameId}&row=${r}&col=${c}`, { method: 'POST' }).then(r => r.json());
   if (res.type === 'mine') {
     over = true; clearInterval(timer);
     document.getElementById('face').textContent = '😵';

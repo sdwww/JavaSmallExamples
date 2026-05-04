@@ -55,4 +55,15 @@ public class MineSweeperController {
         game.reset();
         return game.getBoard();
     }
+
+    @PostMapping("/chord")
+    public ClickResult chord(@RequestParam String gameId,
+                             @RequestParam int row,
+                             @RequestParam int col) {
+        MineSweeperGame game = gameStorage.getGame(gameId);
+        if (game == null) {
+            throw new IllegalArgumentException("Game not found: " + gameId);
+        }
+        return game.chord(row, col);
+    }
 }

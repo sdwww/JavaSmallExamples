@@ -101,6 +101,83 @@ public class MineSweeperGame {
     }
 
     /**
+     * 双击翻开（chording）：当周围旗子数等于格子数字时，自动翻开周围未标记的格子
+     */
+    public ClickResult chord(int row, int col) {
+        validateCoordinates(row, col);
+        if (gameOver) {
+            return ClickResult.gameOver();
+        }
+        // 必须是已翻开的数字格
+        if (!revealed[row][col] || board[row][col] <= 0) {
+            return ClickResult.continueGame(getBoard());
+        }
+
+        int neighborFlagCount = countNeighborFlags(row, col);
+        // 周围旗子数必须等于格子数字才执行
+        if (neighborFlagCount != board[row][col]) {
+            return ClickResult.continueGame(getBoard());
+        }
+
+        // 自动翻开周围所有未翻开且未标记的格子
+        boolean hitMine = chordExpand(row, col);
+        if (hitMine) {
+            gameOver = true;
+            return ClickResult.mine(getBoardWithMines());
+        }
+
+        return checkWin() ? ClickResult.win(getBoard()) : ClickResult.continueGame(getBoard());
+    }
+
+    /**
+     * 双击时展开周围格，遇到雷返回 true
+     */
+    private boolean chordExpand(int row, int col) {
+        for (int rowDelta = -1; rowDelta <= 1; rowDelta++) {
+            for (int colDelta = -1; colDelta <= 1; colDelta++) {
+                if (rowDelta == 0 && colDelta == 0) {
+                    continue;
+                }
+                int neighborRow = row + rowDelta;
+                int neighborCol = col + colDelta;
+                if (!inBounds(neighborRow, neighborCol)) {
+                    continue;
+                }
+                if (flagged[neighborRow][neighborCol] || revealed[neighborRow][neighborCol]) {
+                    continue;
+                }
+
+                revealed[neighborRow][neighborCol] = true;
+                if (isMine[neighborRow][neighborCol]) {
+                    return true;
+                }
+                // 如果翻开的是空白格，继续洪水填充
+                if (board[neighborRow][neighborCol] == 0) {
+                    floodFill(neighborRow, neighborCol);
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 计算指定格子周围8格有多少个旗子
+     */
+    private int countNeighborFlags(int row, int col) {
+        int count = 0;
+        for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
+            for (int colOffset = -1; colOffset <= 1; colOffset++) {
+                int neighborRow = row + rowOffset;
+                int neighborCol = col + colOffset;
+                if (inBounds(neighborRow, neighborCol) && flagged[neighborRow][neighborCol]) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
      * 计算指定格子周围8格有多少颗雷
      */
     private int countNeighborMines(int row, int col) {

@@ -35,9 +35,8 @@
 <body>
 <div class="header">
     <span id="mines">040</span>
-    <span class="face" id="face" onclick="reset()">😄</span>
+    <span class="face" id="face" onclick="reset()">😊</span>
     <span id="time">000</span>
-    <button class="reset-btn" onclick="reset()">重开</button>
   </div>
 <div class="grid" id="grid"></div>
 <div class="msg" id="msg"></div>
@@ -122,7 +121,7 @@
     async function reset() {
       clearInterval(timer); timer = null; sec = 0; over = false;
       document.getElementById('time').textContent = '000';
-      document.getElementById('face').textContent = '😄';
+      document.getElementById('face').textContent = '😊';
       document.getElementById('msg').className = 'msg';
       await fetch(`${API}/reset`, { method: 'POST' });
       await fetchBoard();

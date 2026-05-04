@@ -11,7 +11,7 @@ public class ClickResult {
         return r;
     }
 
-    public static ClickResult mine(int row, int col, int[][] board) {
+    public static ClickResult mine(int[][] board) {
         ClickResult r = new ClickResult();
         r.type = "mine";
         r.board = board;

@@ -80,7 +80,7 @@ public class MineSweeperGame {
 
         if (isMine[row][col]) {
             gameOver = true;
-            return ClickResult.mine(row, col, getBoard());
+            return ClickResult.mine(getBoardWithMines());
         }
 
         floodFill(row, col);
@@ -186,6 +186,28 @@ public class MineSweeperGame {
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
                 if (revealed[r][c]) {
+                    result[r][c] = board[r][c];
+                } else if (flagged[r][c]) {
+                    result[r][c] = -2;
+                } else {
+                    result[r][c] = -1;
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 获取棋盘状态（游戏结束时显示所有雷的位置）
+     * 返回值：-3=雷（游戏结束时显示），-2=旗，-1=未翻开，0-8=已翻开数字
+     */
+    public int[][] getBoardWithMines() {
+        int[][] result = new int[ROWS][COLS];
+        for (int r = 0; r < ROWS; r++) {
+            for (int c = 0; c < COLS; c++) {
+                if (isMine[r][c]) {
+                    result[r][c] = -3;  // 雷：游戏结束时显示
+                } else if (revealed[r][c]) {
                     result[r][c] = board[r][c];
                 } else if (flagged[r][c]) {
                     result[r][c] = -2;

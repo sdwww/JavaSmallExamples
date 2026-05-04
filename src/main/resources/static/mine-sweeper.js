@@ -75,6 +75,8 @@ function renderBoard(board) {
       } else if (v === -2) {
         el.classList.add('flag');
         fc++;
+      } else if (v === -3) {
+        el.classList.add('mine');
       }
     }
   }

@@ -24,6 +24,9 @@ public class MineSweeperGame {
         this.firstClick = true;
     }
 
+    /**
+     * 布雷：以点击位置为中心，周围9格不放置雷
+     */
     public void placeMines(int clickedRow, int clickedCol) {
         Random random = new Random();
 
@@ -61,6 +64,9 @@ public class MineSweeperGame {
         firstClick = false;
     }
 
+    /**
+     * 处理点击：翻开格子或标记旗
+     */
     public ClickResult click(int row, int col) {
         if (gameOver) {
             return ClickResult.gameOver();
@@ -81,6 +87,9 @@ public class MineSweeperGame {
         return checkWin() ? ClickResult.win(getBoard()) : ClickResult.continueGame(getBoard());
     }
 
+    /**
+     * 标记/取消标记旗
+     */
     public FlagResult flag(int row, int col) {
         if (gameOver || revealed[row][col]) {
             return FlagResult.invalid();
@@ -89,6 +98,9 @@ public class MineSweeperGame {
         return FlagResult.ok(flagged[row][col], countFlags());
     }
 
+    /**
+     * 计算指定格子周围8格有多少颗雷
+     */
     private int countNeighborMines(int row, int col) {
         int count = 0;
         for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {
@@ -103,10 +115,16 @@ public class MineSweeperGame {
         return count;
     }
 
+    /**
+     * 判断坐标是否在棋盘范围内
+     */
     private boolean inBounds(int row, int col) {
         return row >= 0 && row < ROWS && col >= 0 && col < COLS;
     }
 
+    /**
+     * 洪水填充：空白格自动展开周围安全格
+     */
     private void floodFill(int row, int col) {
         if (!inBounds(row, col)) {
             return;
@@ -130,6 +148,9 @@ public class MineSweeperGame {
         }
     }
 
+    /**
+     * 统计当前标记旗的数量
+     */
     private int countFlags() {
         int count = 0;
         for (int r = 0; r < ROWS; r++) {
@@ -142,6 +163,9 @@ public class MineSweeperGame {
         return count;
     }
 
+    /**
+     * 检查是否胜利：所有非雷格子都被翻开
+     */
     private boolean checkWin() {
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {
@@ -154,6 +178,9 @@ public class MineSweeperGame {
         return true;
     }
 
+    /**
+     * 获取当前棋盘状态
+     */
     public int[][] getBoard() {
         int[][] result = new int[ROWS][COLS];
         for (int r = 0; r < ROWS; r++) {
@@ -170,6 +197,9 @@ public class MineSweeperGame {
         return result;
     }
 
+    /**
+     * 重置游戏为初始状态
+     */
     public void reset() {
         for (int r = 0; r < ROWS; r++) {
             for (int c = 0; c < COLS; c++) {

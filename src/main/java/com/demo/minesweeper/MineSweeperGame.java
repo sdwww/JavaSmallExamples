@@ -154,13 +154,14 @@ public class MineSweeperGame {
                     continue;
                 }
 
-                revealed[neighborRow][neighborCol] = true;
                 if (isMine[neighborRow][neighborCol]) {
+                    revealed[neighborRow][neighborCol] = true;
                     return true;
                 }
-                // 如果翻开的是空白格，继续洪水填充
                 if (board[neighborRow][neighborCol] == 0) {
                     floodFill(neighborRow, neighborCol);
+                } else {
+                    revealed[neighborRow][neighborCol] = true;
                 }
             }
         }

@@ -2,6 +2,7 @@ package com.demo.minesweeper;
 
 import org.springframework.stereotype.Component;
 import org.springframework.scheduling.annotation.Scheduled;
+import java.util.Iterator;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -31,10 +32,12 @@ public class GameStorage {
     public void cleanup() {
         long now = System.currentTimeMillis();
         int removed = 0;
-        for (String gameId : games.keySet()) {
+        Iterator<String> iterator = games.keySet().iterator();
+        while (iterator.hasNext()) {
+            String gameId = iterator.next();
             Long lastAccess = lastAccessTime.get(gameId);
             if (lastAccess != null && now - lastAccess > EXPIRE_TIME_MS) {
-                games.remove(gameId);
+                iterator.remove();
                 lastAccessTime.remove(gameId);
                 removed++;
             }

@@ -11,12 +11,12 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ErrorCode {
 
-    GAME_NOT_FOUND      (1001, "游戏不存在或已过期"),
-    INVALID_COORDINATES (1002, "坐标越界"),
-    INVALID_MINES       (1003, "雷数配置非法"),
-    INVALID_PARAMETER   (1004, "请求参数非法"),
+    GAME_NOT_FOUND(1001, "游戏不存在或已过期"),
+    INVALID_COORDINATES(1002, "坐标越界"),
+    INVALID_MINES(1003, "雷数配置非法"),
+    INVALID_PARAMETER(1004, "请求参数非法"),
 
-    INTERNAL_ERROR      (9000, "服务器内部错误");
+    INTERNAL_ERROR(9000, "服务器内部错误");
 
     private final int code;
     private final String msg;

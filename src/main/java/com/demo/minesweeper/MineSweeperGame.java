@@ -1,6 +1,6 @@
 package com.demo.minesweeper;
 
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class MineSweeperGame {
 
@@ -35,7 +35,7 @@ public class MineSweeperGame {
      * 布雷：以点击位置为中心，周围9格不放置雷
      */
     public void placeMines(int clickedRow, int clickedCol) {
-        Random random = new Random();
+        ThreadLocalRandom random = ThreadLocalRandom.current();
 
         boolean[][] safeZone = new boolean[rows][cols];
         for (int rowOffset = -1; rowOffset <= 1; rowOffset++) {

@@ -29,6 +29,8 @@
         .msg.show { display: flex; }
         .msg.win { background: rgba(0,128,0,.5); }
         .msg.lose { background: rgba(128,0,0,.5); }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; background: #f59e0b; color: #fff; border-radius: 4px; font-size: 16px; opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 100; max-width: 320px; }
+        .toast.show { opacity: 1; }
         .difficulty { padding: 6px 10px; font-size: 16px; border: 2px solid #888; background: #c0c0c0; cursor: pointer; }
     </style>
 </head>
@@ -45,6 +47,7 @@
 </div>
 <div class="grid" id="grid"></div>
 <div class="msg" id="msg"></div>
+<div class="toast" id="toast"></div>
 <script src="mine-sweeper.js"></script>
 </body>
 </html>
